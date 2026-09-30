@@ -92,6 +92,24 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 .bill-status input{margin:0;accent-color:#2F7A64}
 .bill-amount{display:flex;align-items:center;gap:3px;flex:none;font-weight:600}
 .bill-amount input{width:88px;padding:7px 5px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit;font-size:15px;text-align:right;font-variant-numeric:tabular-nums}
+.bill-summary{text-align:center;color:var(--mute);font-size:14px;margin:-14px 0 16px}
+.bill-summary strong{color:var(--ink);font-weight:600}
+.bill-meta.overdue{color:var(--red)!important;font-weight:600}
+.chart-head{font-size:15px;font-weight:600;color:var(--mute);margin:0 0 12px}
+.chart-layout{display:grid;grid-template-columns:160px minmax(0,1fr);align-items:center;gap:12px}
+.donut{width:160px;height:160px;display:block;overflow:visible}
+.slice{cursor:pointer;stroke:var(--card);stroke-width:2;transition:opacity .15s,transform .15s;transform-origin:80px 80px}
+.slice:hover,.slice:focus-visible{opacity:.8;transform:scale(1.035);outline:none}
+.slice.selected{stroke:var(--ink);stroke-width:3}
+.donut-hole{fill:var(--card);pointer-events:none}
+.donut-total{fill:var(--ink);font-size:13px;font-weight:700;text-anchor:middle}
+.donut-label{fill:var(--mute);font-size:9px;text-anchor:middle}
+.chart-legend{display:grid;gap:3px;min-width:0}
+.legend-item{display:grid;grid-template-columns:10px minmax(0,1fr) auto;align-items:center;gap:7px;width:100%;padding:6px 4px;border:0;border-radius:6px;background:none;color:var(--ink);font:inherit;font-size:13px;text-align:left;cursor:pointer}
+.legend-item:hover,.legend-item.selected{background:var(--bg)}
+.legend-dot{width:9px;height:9px;border-radius:50%}
+.legend-value{color:var(--mute);font-variant-numeric:tabular-nums}
+@media(max-width:380px){.chart-layout{grid-template-columns:132px minmax(0,1fr);gap:8px}.donut{width:132px;height:132px}.legend-item{font-size:12px;gap:5px;padding:5px 2px}}
 @media(max-width:380px){.bill-row{gap:5px}.bill-amount input{width:72px}.bill-status{font-size:11px}}
 .bottom-tabs{position:fixed;left:0;right:0;bottom:0;z-index:4;display:grid;grid-template-columns:repeat(3,1fr);max-width:520px;margin:0 auto;padding:8px 12px calc(8px + env(safe-area-inset-bottom,0px));background:var(--card);border-top:1px solid var(--line)}
 .bottom-tabs button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:52px;border:0;border-radius:10px;background:none;color:var(--mute);font:inherit;font-size:12px;cursor:pointer}
@@ -112,6 +130,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
   <div id="bills" style="display:none">
     <div class="nav"><button id="billPrev" aria-label="Previous month">‹</button><b id="billMonth"></b><button id="billNext" aria-label="Next month">›</button></div>
     <div class="total"><div class="n" id="billTotal"></div><div class="l">monthly bills</div></div>
+    <div id="billDueSummary" class="bill-summary"></div>
     <div id="billList"></div>
   </div>
   <div id="notes">
@@ -132,6 +151,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
     <div id="categoryField"><label>Category</label><div class="chips" id="chips"></div></div>
     <label id="noteLabel" for="note">Note</label><input id="note" type="text" placeholder="What was it for?">
     <label id="dateLabel" for="date">Date</label><input id="date" type="date">
+    <div id="dueDayField" style="display:none"><label for="dueDay">Due day of month</label><input id="dueDay" type="number" min="1" max="31" step="1" value="1"></div>
       <button class="save" id="save">Save expense</button>
     <button class="cancel" id="cancel">Cancel</button>
   </div>
@@ -174,7 +194,16 @@ function render(){
   const rows=Object.entries(by).sort((a,b)=>b[1]-a[1]);
   if(filt&&!by[filt])filt=null;
   $("cats").style.display=rows.length?"block":"none";
-  $("cats").innerHTML=rows.map(([c,v])=>`<div class="bar${filt===c?" on":""}" data-c="${c}"><div class="t"><span>${EMO[c]||"✨"} ${c}</span><span>${money(v)}</span></div><div class="track"><div class="fill" style="width:${v/total*100}%;background:${COL[c]||COL.Other}"></div></div></div>`).join("")+'<div class="hint">Tap a category to filter</div>';
+  if(rows.length){
+    let angle=-Math.PI/2;
+    const slices=rows.map(([c,v])=>{
+      const start=angle;angle+=v/total*Math.PI*2;
+      const percent=Math.round(v/total*100);
+      return `<path class="slice${filt===c?" selected":""}" d="${piePath(start,angle)}" fill="${COL[c]||COL.Other}" data-c="${c}" role="button" tabindex="0" aria-label="Filter ${c}, ${money(v)}, ${percent}%" aria-pressed="${filt===c}"><title>${c}: ${money(v)} (${percent}%)</title></path>`;
+    }).join("");
+    const legend=rows.map(([c,v])=>`<button class="legend-item${filt===c?" selected":""}" data-c="${c}" aria-pressed="${filt===c}"><span class="legend-dot" style="background:${COL[c]||COL.Other}"></span><span>${c}</span><span class="legend-value">${money(v)}</span></button>`).join("");
+    $("cats").innerHTML=`<h2 class="chart-head">Spending by category</h2><div class="chart-layout"><svg class="donut" viewBox="0 0 160 160" role="img" aria-label="Monthly spending by category">${slices}<circle class="donut-hole" cx="80" cy="80" r="43"></circle><text class="donut-total" x="80" y="78">${money(total)}</text><text class="donut-label" x="80" y="94">total spent</text></svg><div class="chart-legend">${legend}</div></div>`;
+  }else $("cats").innerHTML="";
   renderBills();
   const list=all.filter(e=>!filt||e.cat===filt).sort((a,b)=>b.date.localeCompare(a.date)||b.id-a.id);
   if(!list.length){$("list").innerHTML='<div class="empty">No expenses this month.<br>Tap “Add expense” to log one.</div>';return}
@@ -191,15 +220,40 @@ function render(){
   $("list").innerHTML=html+"</div>";
 }
 
+function piePath(start,end){
+  const cx=80,cy=80,r=70;
+  const point=angle=>[cx+r*Math.cos(angle),cy+r*Math.sin(angle)];
+  const [sx,sy]=point(start),[ex,ey]=point(end);
+  if(end-start>=Math.PI*2-0.0001){
+    const [mx,my]=point(start+Math.PI);
+    return `M ${sx} ${sy} A ${r} ${r} 0 1 1 ${mx} ${my} A ${r} ${r} 0 1 1 ${sx} ${sy} Z`;
+  }
+  return `M ${cx} ${cy} L ${sx} ${sy} A ${r} ${r} 0 ${end-start>Math.PI?1:0} 1 ${ex} ${ey} Z`;
+}
+
 function renderBills(){
   const ym=iso(view).slice(0,7);
   $("billMonth").textContent=view.toLocaleDateString("en-IN",{month:"long",year:"numeric"});
   const monthBills=utilityBills.filter(b=>b.startMonth<=ym).map(b=>({bill:b,...billState(b,ym)})).sort((a,b)=>a.bill.name.localeCompare(b.bill.name));
   const total=monthBills.reduce((sum,b)=>sum+b.amount,0);
+  const unpaid=monthBills.filter(b=>!b.paid);
+  const unpaidTotal=unpaid.reduce((sum,b)=>sum+b.amount,0);
+  const overdueTotal=unpaid.reduce((sum,b)=>sum+(billDueInfo(b.bill,ym).overdue?b.amount:0),0);
+  $("billDueSummary").innerHTML=`<strong>${money(unpaidTotal)}</strong> unpaid across ${unpaid.length} ${unpaid.length===1?"bill":"bills"}${overdueTotal?` · <strong>${money(overdueTotal)}</strong> overdue`:""}`;
   const from=billShown,st=performance.now();billShown=total;
   (function f(now){const p=Math.min(1,(now-st)/450),e=1-Math.pow(1-p,3);$("billTotal").textContent=money(Math.round((from+(total-from)*e)*100)/100);if(p<1)requestAnimationFrame(f)})(st);
   if(!monthBills.length){$("billList").innerHTML='<div class="empty">No monthly bills yet.<br>Add a bill to start tracking it.</div>';return}
-  $("billList").innerHTML='<div class="card" style="margin-bottom:0">'+monthBills.map(b=>`<div class="row bill-row"><div class="bill-status" role="radiogroup" aria-label="${esc(b.bill.name)} status"><label><input type="radio" name="bill-status-${b.bill.id}" value="paid" data-bill-status="paid" data-bill-id="${b.bill.id}"${b.paid?' checked':''}>Paid</label><label><input type="radio" name="bill-status-${b.bill.id}" value="due" data-bill-status="due" data-bill-id="${b.bill.id}"${b.paid?'':' checked'}>Due</label></div><div class="m"><div>${esc(b.bill.name)}</div></div><label class="bill-amount"><span>₹</span><input type="number" min="0" step="0.01" value="${b.amount}" aria-label="${esc(b.bill.name)} amount" data-bill-amount data-bill-id="${b.bill.id}"></label><button class="x" data-bill-delete="${b.bill.id}" aria-label="Delete ${esc(b.bill.name)}">✕</button></div>`).join("")+'</div>';
+  $("billList").innerHTML='<div class="card" style="margin-bottom:0">'+monthBills.map(b=>{const due=billDueInfo(b.bill,ym);return `<div class="row bill-row"><div class="bill-status" role="radiogroup" aria-label="${esc(b.bill.name)} status"><label><input type="radio" name="bill-status-${b.bill.id}" value="paid" data-bill-status="paid" data-bill-id="${b.bill.id}"${b.paid?' checked':''}>Paid</label><label><input type="radio" name="bill-status-${b.bill.id}" value="due" data-bill-status="due" data-bill-id="${b.bill.id}"${b.paid?'':' checked'}>Due</label></div><div class="m"><div>${esc(b.bill.name)}</div><div class="bill-meta${!b.paid&&due.overdue?' overdue':''}">${b.paid?'Paid':due.overdue?'Overdue':`Due ${due.label}`}</div></div><label class="bill-amount"><span>₹</span><input type="number" min="0" step="0.01" value="${b.amount}" aria-label="${esc(b.bill.name)} amount" data-bill-amount data-bill-id="${b.bill.id}"></label><button class="x" data-bill-delete="${b.bill.id}" aria-label="Delete ${esc(b.bill.name)}">✕</button></div>`}).join("")+'</div>';
+}
+
+function billDueInfo(b,ym){
+  const [year,month]=ym.split("-").map(Number);
+  const lastDay=new Date(year,month,0).getDate();
+  const dueDay=Math.min(Math.max(Number(b.dueDay)||1,1),lastDay);
+  const dueDate=new Date(year,month-1,dueDay);
+  const today=new Date();today.setHours(0,0,0,0);
+  const currentMonth=iso(today).slice(0,7);
+  return {label:dueDate.toLocaleDateString("en-IN",{day:"numeric",month:"short"}),overdue:ym<currentMonth||(ym===currentMonth&&dueDate<today)};
 }
 
 function billState(b,ym){
@@ -216,6 +270,7 @@ function openSheet(){
   $("entrySheet").setAttribute("aria-label","Add expense");
   $("categoryField").style.display="block";$("noteLabel").textContent="Note";$("note").placeholder="What was it for?";
   $("dateLabel").textContent="Date";$("date").type="date";$("date").value=iso(new Date());$("save").textContent="Save expense";
+  $("dueDayField").style.display="none";
   $("amt").value="";$("note").value="";$("date").value=iso(new Date());cat=CATS[0];chips();
   chk();$("bg").classList.add("on");setTimeout(()=>$("amt").focus(),50);
 }
@@ -224,6 +279,7 @@ function openBillSheet(){
   $("entrySheet").setAttribute("aria-label","Add monthly bill");
   $("categoryField").style.display="none";$("noteLabel").textContent="Utility";$("note").placeholder="Electricity, water, internet…";
   $("dateLabel").textContent="Starts in";$("date").type="month";$("date").value=iso(view).slice(0,7);
+  $("dueDayField").style.display="block";$("dueDay").value="1";
   $("save").textContent="Add monthly bill";$("amt").value="";$("note").value="";
   chk();$("bg").classList.add("on");setTimeout(()=>$ ("amt").focus(),50);
 }
@@ -242,7 +298,8 @@ $("save").onclick=()=>{
     const month=$("date").value||iso(new Date()).slice(0,7);
     const name=$("note").value.trim();
     if(!name){$("note").focus();return}
-    utilityBills.push({id:Date.now(),name,startMonth:month,months:{[month]:{amount,paid:false}}});
+    const dueDay=Math.min(31,Math.max(1,parseInt($("dueDay").value,10)||1));
+    utilityBills.push({id:Date.now(),name,startMonth:month,dueDay,months:{[month]:{amount,paid:false}}});
     persistBills();closeSheet();toast("Utility bill saved ✓");
     view=new Date(month+"-01T00:00");render();return;
   }
@@ -256,7 +313,10 @@ $("list").onclick=e=>{
   const id=e.target.dataset.id;
   if(id&&confirm("Delete this expense?")){e.target.closest(".row").classList.add("out");setTimeout(()=>{items=items.filter(x=>String(x.id)!==id);persist();render();toast("Deleted")},250)}
 };
-$("cats").onclick=e=>{const b=e.target.closest(".bar");if(b){filt=filt===b.dataset.c?null:b.dataset.c;render()}};
+$("cats").onclick=e=>{const target=e.target.closest("[data-c]");if(target){filt=filt===target.dataset.c?null:target.dataset.c;render()}};
+$("cats").onkeydown=e=>{
+  if((e.key==="Enter"||e.key===" ")&&e.target.matches(".slice")){e.preventDefault();filt=filt===e.target.dataset.c?null:e.target.dataset.c;render()}
+};
 $("prev").onclick=()=>{view.setMonth(view.getMonth()-1);render()};
 $("next").onclick=()=>{view.setMonth(view.getMonth()+1);render()};
 $("billPrev").onclick=()=>{view.setMonth(view.getMonth()-1);render()};
