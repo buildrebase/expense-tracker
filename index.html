@@ -116,11 +116,34 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 .bottom-tabs button span:first-child{font-size:20px;line-height:1}
 .bottom-tabs button.on{color:var(--accText);font-weight:600;background:var(--bg)}
 .fab{bottom:calc(82px + env(safe-area-inset-bottom,0px))}
+.top{justify-content:space-between}
+.cloud-actions{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--mute)}
+.cloud-actions button{border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);padding:6px 9px;font:inherit;cursor:pointer}
+.auth-gate{position:fixed;inset:0;z-index:30;display:none;place-items:center;padding:20px;background:var(--bg)}
+.auth-panel{width:100%;max-width:400px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:24px}
+.auth-panel h2{margin:0 0 6px;color:var(--ink);font-size:22px}
+.auth-panel p{margin:0 0 16px;color:var(--mute);font-size:14px}
+.auth-panel label{display:block;margin:12px 0 5px;color:var(--mute);font-size:14px}
+.auth-panel input{width:100%;padding:11px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font:inherit}
+.auth-panel button{width:100%;height:44px;margin-top:12px;border:0;border-radius:10px;background:#2F7A64;color:#fff;font:600 16px inherit;font-family:inherit;cursor:pointer}
+.auth-panel button.secondary{background:transparent;color:var(--accText)}
+.auth-status{min-height:20px;margin-top:10px;color:var(--mute);font-size:13px}
 </style>
 </head>
 <body>
+<div class="auth-gate" id="authGate">
+  <form class="auth-panel" id="authForm">
+    <h2 id="authHeading">Sign in</h2>
+    <p>Sign in to sync your expenses across your devices.</p>
+    <label for="authEmail">Email</label><input id="authEmail" type="email" autocomplete="email" required>
+    <label for="authPassword">Password</label><input id="authPassword" type="password" autocomplete="current-password" minlength="6" required>
+    <button id="authSubmit" type="submit">Sign in</button>
+    <button class="secondary" id="authToggle" type="button">Create an account</button>
+    <div class="auth-status" id="authStatus" role="status"></div>
+  </form>
+</div>
 <main>
-  <div class="top"><h1 id="title">Expenses</h1></div>
+  <div class="top"><h1 id="title">Expenses</h1><div class="cloud-actions"><span id="syncStatus">Local only</span><button id="signOut" type="button" style="display:none">Sign out</button></div></div>
   <div id="exp">
     <div class="nav"><button id="prev" aria-label="Previous month">‹</button><b id="month"></b><button id="next" aria-label="Next month">›</button></div>
     <div class="total"><div class="n" id="total"></div><div class="l">spent this month</div></div>
@@ -158,13 +181,16 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 </div>
 
 <div class="toast" id="toast" role="status"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 const CUR="₹", CATS=["Food","Transport","Bills","Shopping","Health","Fun","Other"],
 EMO={Food:"🍜",Transport:"🚌",Bills:"🧾",Shopping:"🛍️",Health:"💊",Fun:"🎬",Other:"✨"},
 COL={Food:"#F6C9A8",Transport:"#B9D8F0",Bills:"#D9CBF0",Shopping:"#F4BFD0",Health:"#BFE5D0",Fun:"#F7E3A1",Other:"#D5DEDB"};
 const KEY="expenses-v1", BILL_KEY="utility-bills-v2", OLD_BILL_KEY="utility-bills-v1";
+const SUPABASE_URL="", SUPABASE_ANON_KEY="";
 let items=[], utilityBills=[], filt=null, shown=0, billShown=0, cat=CATS[0], view=new Date(); view.setDate(1);
 const $=id=>document.getElementById(id);
+let supaClient=null,cloudUser=null,cloudReady=false,cloudTimer=null,authMode="signin";
 try{items=JSON.parse(localStorage.getItem(KEY)||"[]")||[]}catch(e){items=[]}
 try{
   const savedBills=localStorage.getItem(BILL_KEY);
@@ -174,8 +200,8 @@ try{
     if(utilityBills.length)localStorage.setItem(BILL_KEY,JSON.stringify(utilityBills));
   }
 }catch(e){utilityBills=[]}
-function persist(){try{localStorage.setItem(KEY,JSON.stringify(items))}catch(e){}}
-function persistBills(){try{localStorage.setItem(BILL_KEY,JSON.stringify(utilityBills))}catch(e){}}
+function persist(){try{localStorage.setItem(KEY,JSON.stringify(items))}catch(e){};queueCloudSave()}
+function persistBills(){try{localStorage.setItem(BILL_KEY,JSON.stringify(utilityBills))}catch(e){};queueCloudSave()}
 const money=n=>CUR+n.toLocaleString("en-IN",{maximumFractionDigits:2});
 const iso=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
 const esc=s=>s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -365,10 +391,73 @@ try{$("noteText").value=localStorage.getItem("notes-v1")||""}catch(e){}
 let nt;
 $("noteText").oninput=()=>{
   $("saved").textContent="Saving…";clearTimeout(nt);
-  nt=setTimeout(()=>{try{localStorage.setItem("notes-v1",$("noteText").value);$("saved").textContent="Saved"}catch(e){$("saved").textContent="Could not save"}},400);
+  nt=setTimeout(()=>{try{localStorage.setItem("notes-v1",$("noteText").value);$("saved").textContent="Saved";queueCloudSave()}catch(e){$("saved").textContent="Could not save"}},400);
 };
 render();
 tab(0);
+initCloud();
+
+function cloudPayload(){
+  return {user_id:cloudUser.id,expenses:items,utility_bills:utilityBills,notes:$ ("noteText").value,updated_at:new Date().toISOString()};
+}
+function queueCloudSave(){
+  if(!cloudReady||!cloudUser)return;
+  clearTimeout(cloudTimer);$("syncStatus").textContent="Saving…";
+  cloudTimer=setTimeout(async()=>{
+    const {error}=await supaClient.from("expense_tracker_data").upsert(cloudPayload());
+    $("syncStatus").textContent=error?"Sync failed":"Synced";
+  },600);
+}
+async function activateCloudSession(session){
+  if(!session){
+    cloudUser=null;cloudReady=false;$("signOut").style.display="none";$("authGate").style.display="grid";$("authStatus").textContent="";return;
+  }
+  if(cloudReady&&cloudUser?.id===session.user.id)return;
+  cloudUser=session.user;cloudReady=false;$("authGate").style.display="grid";$("authStatus").textContent="Loading your cloud data…";
+  try{
+    const {data,error}=await supaClient.from("expense_tracker_data").select("expenses,utility_bills,notes").eq("user_id",cloudUser.id).maybeSingle();
+    if(error)throw error;
+    if(data){
+      items=Array.isArray(data.expenses)?data.expenses:[];
+      utilityBills=Array.isArray(data.utility_bills)?data.utility_bills:[];
+      $("noteText").value=typeof data.notes==="string"?data.notes:"";
+      localStorage.setItem(KEY,JSON.stringify(items));localStorage.setItem(BILL_KEY,JSON.stringify(utilityBills));localStorage.setItem("notes-v1",$("noteText").value);
+    }else{
+      const {error:saveError}=await supaClient.from("expense_tracker_data").upsert(cloudPayload());
+      if(saveError)throw saveError;
+    }
+    cloudReady=true;$("syncStatus").textContent="Synced";$("signOut").style.display="block";$("authGate").style.display="none";$("authStatus").textContent="";render();
+  }catch(error){
+    cloudUser=null;cloudReady=false;$("authStatus").textContent=`Could not load cloud data: ${error.message}`;
+  }
+}
+function initCloud(){
+  if(!SUPABASE_URL||!SUPABASE_ANON_KEY){$("syncStatus").textContent="Cloud not configured";return}
+  if(!window.supabase){$("syncStatus").textContent="Cloud library unavailable";return}
+  supaClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+  supaClient.auth.onAuthStateChange((_event,session)=>{setTimeout(()=>activateCloudSession(session),0)});
+  supaClient.auth.getSession().then(({data,error})=>{
+    if(error){$("authStatus").textContent=error.message;$("authGate").style.display="grid";return}
+    activateCloudSession(data.session);
+  });
+}
+$("authToggle").onclick=()=>{
+  authMode=authMode==="signin"?"signup":"signin";
+  $("authHeading").textContent=authMode==="signup"?"Create account":"Sign in";
+  $("authSubmit").textContent=authMode==="signup"?"Create account":"Sign in";
+  $("authToggle").textContent=authMode==="signup"?"Back to sign in":"Create an account";
+  $("authPassword").autocomplete=authMode==="signup"?"new-password":"current-password";
+  $("authStatus").textContent="";
+};
+$("authForm").onsubmit=async e=>{
+  e.preventDefault();$("authSubmit").disabled=true;$("authStatus").textContent="Connecting…";
+  const credentials={email:$("authEmail").value.trim(),password:$("authPassword").value};
+  const result=authMode==="signup"?await supaClient.auth.signUp(credentials):await supaClient.auth.signInWithPassword(credentials);
+  $("authSubmit").disabled=false;
+  if(result.error){$("authStatus").textContent=result.error.message;return}
+  if(authMode==="signup"&&!result.data.session)$("authStatus").textContent="Check your email to confirm your account, then sign in.";
+};
+$("signOut").onclick=async()=>{await supaClient.auth.signOut();};
 </script>
 </body>
 </html>
