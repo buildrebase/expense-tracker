@@ -187,7 +187,7 @@ const CUR="₹", CATS=["Food","Transport","Bills","Shopping","Health","Fun","Oth
 EMO={Food:"🍜",Transport:"🚌",Bills:"🧾",Shopping:"🛍️",Health:"💊",Fun:"🎬",Other:"✨"},
 COL={Food:"#F6C9A8",Transport:"#B9D8F0",Bills:"#D9CBF0",Shopping:"#F4BFD0",Health:"#BFE5D0",Fun:"#F7E3A1",Other:"#D5DEDB"};
 const KEY="expenses-v1", BILL_KEY="utility-bills-v2", OLD_BILL_KEY="utility-bills-v1";
-const SUPABASE_URL="", SUPABASE_ANON_KEY="";
+const SUPABASE_URL="https://btdkdlrflfcmnmmvwxxu.supabase.co", SUPABASE_ANON_KEY="sb_publishable_btfw7hpVeyc7KpOsqVnnvg_lOHde3Im";
 let items=[], utilityBills=[], filt=null, shown=0, billShown=0, cat=CATS[0], view=new Date(); view.setDate(1);
 const $=id=>document.getElementById(id);
 let supaClient=null,cloudUser=null,cloudReady=false,cloudTimer=null,authMode="signin";
