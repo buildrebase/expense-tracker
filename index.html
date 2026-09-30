@@ -62,7 +62,12 @@ h2{font-size:15px;font-weight:600;color:var(--mute);margin:20px 4px 8px}
 #notes{display:none}
 #notes textarea{width:100%;height:65vh;min-height:300px;resize:none;font:inherit;font-size:16px;line-height:1.5;padding:14px;border-radius:16px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
 #notes .s{text-align:right;font-size:13px;color:var(--mute);margin:6px 4px}
+.save{background:#CFE6DE;color:#5E8B7D;font-size:18px;transition:background .2s,color .2s,box-shadow .2s}
+.save.ready{background:#2F7A64;color:#fff;box-shadow:0 6px 16px rgba(47,122,100,.35)}
 .fab{background:#2F7A64;color:#fff;font-size:18px;box-shadow:0 8px 20px rgba(47,122,100,.4)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .save{background:var(--line);color:var(--mute)}:root:not([data-theme="light"]) .save.ready{background:#4FB79C;color:#08201A}}
+:root[data-theme="dark"] .save{background:var(--line);color:var(--mute)}
+:root[data-theme="dark"] .save.ready{background:#4FB79C;color:#08201A}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .fab{background:#4FB79C;color:#08201A}}
 :root[data-theme="dark"] .fab{background:#4FB79C;color:#08201A}
 button{transition:transform .12s}
@@ -164,8 +169,10 @@ function chips(){
 }
 function openSheet(){
   $("amt").value="";$("note").value="";$("date").value=iso(new Date());cat=CATS[0];chips();
-  $("bg").classList.add("on");setTimeout(()=>$("amt").focus(),50);
+  chk();$("bg").classList.add("on");setTimeout(()=>$("amt").focus(),50);
 }
+function chk(){$("save").classList.toggle("ready",parseFloat($("amt").value.replace(",","."))>0)}
+$("amt").oninput=chk;
 function closeSheet(){$("bg").classList.remove("on")}
 
 $("add").onclick=openSheet;
