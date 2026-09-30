@@ -13,7 +13,7 @@ box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:en
 *{box-sizing:border-box}
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
 body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.4 "Avenir Next","Segoe UI",system-ui,sans-serif;-webkit-tap-highlight-color:transparent}
-main{max-width:520px;margin:0 auto;padding:16px 16px 110px}
+main{max-width:520px;margin:0 auto;padding:16px 16px 150px}
 .nav{display:flex;align-items:center;justify-content:space-between}
 .nav button{background:none;border:0;color:var(--ink);font-size:26px;padding:6px 14px;cursor:pointer}
 .nav b{font-size:17px;font-weight:600}
@@ -86,22 +86,33 @@ button:active{transform:scale(.96)}
 .filt{display:flex;justify-content:space-between;align-items:center;font-size:15px;color:var(--mute);margin:4px 4px 0}
 .filt button{background:none;border:0;color:var(--accText);font:inherit;cursor:pointer}
 button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.bill-row{gap:8px}
+.bill-status{display:flex;flex-direction:column;gap:2px;flex:none;font-size:12px;color:var(--mute)}
+.bill-status label{display:flex;align-items:center;gap:3px;white-space:nowrap}
+.bill-status input{margin:0;accent-color:#2F7A64}
+.bill-amount{display:flex;align-items:center;gap:3px;flex:none;font-weight:600}
+.bill-amount input{width:88px;padding:7px 5px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit;font-size:15px;text-align:right;font-variant-numeric:tabular-nums}
+@media(max-width:380px){.bill-row{gap:5px}.bill-amount input{width:72px}.bill-status{font-size:11px}}
+.bottom-tabs{position:fixed;left:0;right:0;bottom:0;z-index:4;display:grid;grid-template-columns:repeat(3,1fr);max-width:520px;margin:0 auto;padding:8px 12px calc(8px + env(safe-area-inset-bottom,0px));background:var(--card);border-top:1px solid var(--line)}
+.bottom-tabs button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:52px;border:0;border-radius:10px;background:none;color:var(--mute);font:inherit;font-size:12px;cursor:pointer}
+.bottom-tabs button span:first-child{font-size:20px;line-height:1}
+.bottom-tabs button.on{color:var(--accText);font-weight:600;background:var(--bg)}
+.fab{bottom:calc(82px + env(safe-area-inset-bottom,0px))}
 </style>
 </head>
 <body>
-<div class="drawer-bg" id="dbg"></div>
-<nav class="drawer" id="drawer" aria-label="Menu">
-  <h3>Menu</h3>
-  <button id="tabE" class="on">Expenses</button>
-  <button id="tabN">Notes</button>
-</nav>
 <main>
-  <div class="top"><button class="burger" id="burger" aria-label="Open menu"><i></i><i></i><i></i></button><h1 id="title">Expenses</h1></div>
+  <div class="top"><h1 id="title">Expenses</h1></div>
   <div id="exp">
     <div class="nav"><button id="prev" aria-label="Previous month">‹</button><b id="month"></b><button id="next" aria-label="Next month">›</button></div>
     <div class="total"><div class="n" id="total"></div><div class="l">spent this month</div></div>
     <div class="card" id="cats"></div>
     <div id="list"></div>
+  </div>
+  <div id="bills" style="display:none">
+    <div class="nav"><button id="billPrev" aria-label="Previous month">‹</button><b id="billMonth"></b><button id="billNext" aria-label="Next month">›</button></div>
+    <div class="total"><div class="n" id="billTotal"></div><div class="l">monthly bills</div></div>
+    <div id="billList"></div>
   </div>
   <div id="notes">
     <textarea id="noteText" placeholder="Write bills, reminders or anything else here. It saves as you type." aria-label="Notes"></textarea>
@@ -109,14 +120,19 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
   </div>
 </main>
 <button class="fab" id="add">Add expense</button>
+<nav class="bottom-tabs" aria-label="Main navigation">
+  <button id="tabB" type="button" aria-label="Utility" aria-selected="false"><span>▤</span><span>Utility</span></button>
+  <button id="tabE" class="on" type="button" aria-label="Expenses" aria-selected="true"><span>◷</span><span>Expenses</span></button>
+  <button id="tabN" type="button" aria-label="Notes" aria-selected="false"><span>✎</span><span>Notes</span></button>
+</nav>
 
 <div class="sheet-bg" id="bg">
-  <div class="sheet" role="dialog" aria-label="Add expense">
+  <div class="sheet" id="entrySheet" role="dialog" aria-label="Add expense">
     <input class="amt" id="amt" type="text" inputmode="decimal" placeholder="0" aria-label="Amount">
-    <label>Category</label><div class="chips" id="chips"></div>
-    <label for="note">Note</label><input id="note" type="text" placeholder="What was it for?">
-    <label for="date">Date</label><input id="date" type="date">
-    <button class="save" id="save">Save expense</button>
+    <div id="categoryField"><label>Category</label><div class="chips" id="chips"></div></div>
+    <label id="noteLabel" for="note">Note</label><input id="note" type="text" placeholder="What was it for?">
+    <label id="dateLabel" for="date">Date</label><input id="date" type="date">
+      <button class="save" id="save">Save expense</button>
     <button class="cancel" id="cancel">Cancel</button>
   </div>
 </div>
@@ -126,11 +142,20 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 const CUR="₹", CATS=["Food","Transport","Bills","Shopping","Health","Fun","Other"],
 EMO={Food:"🍜",Transport:"🚌",Bills:"🧾",Shopping:"🛍️",Health:"💊",Fun:"🎬",Other:"✨"},
 COL={Food:"#F6C9A8",Transport:"#B9D8F0",Bills:"#D9CBF0",Shopping:"#F4BFD0",Health:"#BFE5D0",Fun:"#F7E3A1",Other:"#D5DEDB"};
-const KEY="expenses-v1";
-let items=[], filt=null, shown=0, cat=CATS[0], view=new Date(); view.setDate(1);
+const KEY="expenses-v1", BILL_KEY="utility-bills-v2", OLD_BILL_KEY="utility-bills-v1";
+let items=[], utilityBills=[], filt=null, shown=0, billShown=0, cat=CATS[0], view=new Date(); view.setDate(1);
 const $=id=>document.getElementById(id);
 try{items=JSON.parse(localStorage.getItem(KEY)||"[]")||[]}catch(e){items=[]}
+try{
+  const savedBills=localStorage.getItem(BILL_KEY);
+  if(savedBills!==null)utilityBills=JSON.parse(savedBills)||[];
+  else{
+    utilityBills=(JSON.parse(localStorage.getItem(OLD_BILL_KEY)||"[]")||[]).map(b=>({id:b.id,name:b.name,startMonth:b.month,months:{[b.month]:{amount:b.amount,paid:false}}}));
+    if(utilityBills.length)localStorage.setItem(BILL_KEY,JSON.stringify(utilityBills));
+  }
+}catch(e){utilityBills=[]}
 function persist(){try{localStorage.setItem(KEY,JSON.stringify(items))}catch(e){}}
+function persistBills(){try{localStorage.setItem(BILL_KEY,JSON.stringify(utilityBills))}catch(e){}}
 const money=n=>CUR+n.toLocaleString("en-IN",{maximumFractionDigits:2});
 const iso=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
 const esc=s=>s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -141,6 +166,7 @@ function toast(m){const t=$("toast");t.textContent=m;t.classList.add("on");setTi
 function render(){
   const ym=iso(view).slice(0,7);
   $("month").textContent=view.toLocaleDateString("en-IN",{month:"long",year:"numeric"});
+  $("billMonth").textContent=$("month").textContent;
   const all=items.filter(e=>e.date.startsWith(ym));
   const total=all.reduce((s,e)=>s+e.amount,0);
   countTo(total);
@@ -149,6 +175,7 @@ function render(){
   if(filt&&!by[filt])filt=null;
   $("cats").style.display=rows.length?"block":"none";
   $("cats").innerHTML=rows.map(([c,v])=>`<div class="bar${filt===c?" on":""}" data-c="${c}"><div class="t"><span>${EMO[c]||"✨"} ${c}</span><span>${money(v)}</span></div><div class="track"><div class="fill" style="width:${v/total*100}%;background:${COL[c]||COL.Other}"></div></div></div>`).join("")+'<div class="hint">Tap a category to filter</div>';
+  renderBills();
   const list=all.filter(e=>!filt||e.cat===filt).sort((a,b)=>b.date.localeCompare(a.date)||b.id-a.id);
   if(!list.length){$("list").innerHTML='<div class="empty">No expenses this month.<br>Tap “Add expense” to log one.</div>';return}
   let html=filt?`<div class="filt"><span>Showing ${EMO[filt]} ${filt}</span><button id="clr">Show all</button></div>`:"",last="";
@@ -164,12 +191,41 @@ function render(){
   $("list").innerHTML=html+"</div>";
 }
 
+function renderBills(){
+  const ym=iso(view).slice(0,7);
+  $("billMonth").textContent=view.toLocaleDateString("en-IN",{month:"long",year:"numeric"});
+  const monthBills=utilityBills.filter(b=>b.startMonth<=ym).map(b=>({bill:b,...billState(b,ym)})).sort((a,b)=>a.bill.name.localeCompare(b.bill.name));
+  const total=monthBills.reduce((sum,b)=>sum+b.amount,0);
+  const from=billShown,st=performance.now();billShown=total;
+  (function f(now){const p=Math.min(1,(now-st)/450),e=1-Math.pow(1-p,3);$("billTotal").textContent=money(Math.round((from+(total-from)*e)*100)/100);if(p<1)requestAnimationFrame(f)})(st);
+  if(!monthBills.length){$("billList").innerHTML='<div class="empty">No monthly bills yet.<br>Add a bill to start tracking it.</div>';return}
+  $("billList").innerHTML='<div class="card" style="margin-bottom:0">'+monthBills.map(b=>`<div class="row bill-row"><div class="bill-status" role="radiogroup" aria-label="${esc(b.bill.name)} status"><label><input type="radio" name="bill-status-${b.bill.id}" value="paid" data-bill-status="paid" data-bill-id="${b.bill.id}"${b.paid?' checked':''}>Paid</label><label><input type="radio" name="bill-status-${b.bill.id}" value="due" data-bill-status="due" data-bill-id="${b.bill.id}"${b.paid?'':' checked'}>Due</label></div><div class="m"><div>${esc(b.bill.name)}</div></div><label class="bill-amount"><span>₹</span><input type="number" min="0" step="0.01" value="${b.amount}" aria-label="${esc(b.bill.name)} amount" data-bill-amount data-bill-id="${b.bill.id}"></label><button class="x" data-bill-delete="${b.bill.id}" aria-label="Delete ${esc(b.bill.name)}">✕</button></div>`).join("")+'</div>';
+}
+
+function billState(b,ym){
+  const month=Object.keys(b.months).filter(key=>key<=ym).sort().pop();
+  const record=month&&b.months[month];
+  return {amount:record?.amount||0,paid:month===ym&&!!record?.paid};
+}
+
 function chips(){
   $("chips").innerHTML=CATS.map(c=>`<button class="chip${c===cat?" on":""}" data-c="${c}">${EMO[c]} ${c}</button>`).join("");
 }
 function openSheet(){
+  $("entrySheet").dataset.kind="expense";
+  $("entrySheet").setAttribute("aria-label","Add expense");
+  $("categoryField").style.display="block";$("noteLabel").textContent="Note";$("note").placeholder="What was it for?";
+  $("dateLabel").textContent="Date";$("date").type="date";$("date").value=iso(new Date());$("save").textContent="Save expense";
   $("amt").value="";$("note").value="";$("date").value=iso(new Date());cat=CATS[0];chips();
   chk();$("bg").classList.add("on");setTimeout(()=>$("amt").focus(),50);
+}
+function openBillSheet(){
+  $("entrySheet").dataset.kind="bill";
+  $("entrySheet").setAttribute("aria-label","Add monthly bill");
+  $("categoryField").style.display="none";$("noteLabel").textContent="Utility";$("note").placeholder="Electricity, water, internet…";
+  $("dateLabel").textContent="Starts in";$("date").type="month";$("date").value=iso(view).slice(0,7);
+  $("save").textContent="Add monthly bill";$("amt").value="";$("note").value="";
+  chk();$("bg").classList.add("on");setTimeout(()=>$ ("amt").focus(),50);
 }
 function chk(){$("save").classList.toggle("ready",parseFloat($("amt").value.replace(",","."))>0)}
 $("amt").oninput=chk;
@@ -182,6 +238,14 @@ $("chips").onclick=e=>{const c=e.target.dataset.c;if(c){cat=c;chips()}};
 $("save").onclick=()=>{
   const amount=parseFloat($("amt").value.replace(",","."));
   if(!(amount>0)){$("amt").focus();return}
+  if($("entrySheet").dataset.kind==="bill"){
+    const month=$("date").value||iso(new Date()).slice(0,7);
+    const name=$("note").value.trim();
+    if(!name){$("note").focus();return}
+    utilityBills.push({id:Date.now(),name,startMonth:month,months:{[month]:{amount,paid:false}}});
+    persistBills();closeSheet();toast("Utility bill saved ✓");
+    view=new Date(month+"-01T00:00");render();return;
+  }
   const date=$("date").value||iso(new Date());
   items.push({id:Date.now(),amount,cat,note:$("note").value.trim(),date});
   persist();closeSheet();toast("Expense saved ✓");
@@ -195,19 +259,48 @@ $("list").onclick=e=>{
 $("cats").onclick=e=>{const b=e.target.closest(".bar");if(b){filt=filt===b.dataset.c?null:b.dataset.c;render()}};
 $("prev").onclick=()=>{view.setMonth(view.getMonth()-1);render()};
 $("next").onclick=()=>{view.setMonth(view.getMonth()+1);render()};
-function menu(o){$("drawer").classList.toggle("on",o);$("dbg").classList.toggle("on",o)}
-$("burger").onclick=()=>menu(true);
-$("dbg").onclick=()=>menu(false);
+$("billPrev").onclick=()=>{view.setMonth(view.getMonth()-1);render()};
+$("billNext").onclick=()=>{view.setMonth(view.getMonth()+1);render()};
+$("billList").onclick=e=>{
+  const id=e.target.dataset.billDelete;
+  if(id&&confirm("Delete this monthly bill?")){
+    e.target.closest(".row").classList.add("out");
+    setTimeout(()=>{utilityBills=utilityBills.filter(b=>String(b.id)!==id);persistBills();renderBills();toast("Deleted")},250);
+  }
+};
+$("billList").onchange=e=>{
+  const id=e.target.dataset.billId;
+  if(!id)return;
+  const bill=utilityBills.find(b=>String(b.id)===id);
+  if(!bill)return;
+  const ym=iso(view).slice(0,7),state=billState(bill,ym);
+  if(e.target.hasAttribute("data-bill-amount")){
+    const amount=parseFloat(e.target.value);
+    if(!Number.isFinite(amount)||amount<0){renderBills();return}
+    bill.months[ym]={amount,paid:state.paid};
+  }else if(e.target.hasAttribute("data-bill-status")){
+    bill.months[ym]={amount:state.amount,paid:e.target.value==="paid"};
+  }else return;
+  persistBills();renderBills();
+};
 function tab(n){
-  $("exp").style.display=n?"none":"block";
-  $("notes").style.display=n?"block":"none";
-  $("add").style.display=n?"none":"block";
-  $("title").textContent=n?"Notes":"Expenses";
-  $("tabE").classList.toggle("on",!n);$("tabN").classList.toggle("on",!!n);
-  menu(false);
+  $("exp").style.display=n===0?"block":"none";
+  $("bills").style.display=n===1?"block":"none";
+  $("notes").style.display=n===2?"block":"none";
+  $("add").style.display=n===2?"none":"block";
+  $("add").textContent=n===1?"Add monthly bill":"Add expense";
+  $("add").onclick=n===1?openBillSheet:openSheet;
+  $("title").textContent=n===1?"Utility Bills":n===2?"Notes":"Expenses";
+  $("tabE").classList.toggle("on",n===0);$("tabB").classList.toggle("on",n===1);$("tabN").classList.toggle("on",n===2);
+  $("tabB").setAttribute("aria-selected",String(n===1));
+  $("tabE").setAttribute("aria-selected",String(n===0));
+  $("tabN").setAttribute("aria-selected",String(n===2));
+  $("prev").parentElement.style.display=n===2?"none":"flex";
+  $("billPrev").parentElement.style.display=n===1?"flex":"none";
 }
 $("tabE").onclick=()=>tab(0);
-$("tabN").onclick=()=>tab(1);
+$("tabB").onclick=()=>tab(1);
+$("tabN").onclick=()=>tab(2);
 try{$("noteText").value=localStorage.getItem("notes-v1")||""}catch(e){}
 let nt;
 $("noteText").oninput=()=>{
@@ -215,6 +308,7 @@ $("noteText").oninput=()=>{
   nt=setTimeout(()=>{try{localStorage.setItem("notes-v1",$("noteText").value);$("saved").textContent="Saved"}catch(e){$("saved").textContent="Could not save"}},400);
 };
 render();
+tab(0);
 </script>
 </body>
 </html>
