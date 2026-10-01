@@ -27,13 +27,21 @@ create table if not exists public.expense_tracker_notes (
 	content text not null default ''
 );
 
+create table if not exists public.expense_tracker_categories (
+	user_id uuid not null references auth.users(id) on delete cascade,
+	name text not null check (char_length(btrim(name)) between 1 and 32),
+	primary key (user_id, name)
+);
+
 alter table public.expense_tracker_expenses enable row level security;
 alter table public.expense_tracker_utility_bills enable row level security;
 alter table public.expense_tracker_notes enable row level security;
+alter table public.expense_tracker_categories enable row level security;
 
 grant select, insert, update, delete on public.expense_tracker_expenses to authenticated;
 grant select, insert, update, delete on public.expense_tracker_utility_bills to authenticated;
 grant select, insert, update, delete on public.expense_tracker_notes to authenticated;
+grant select, insert, update, delete on public.expense_tracker_categories to authenticated;
 
 drop policy if exists "Users manage their own expenses" on public.expense_tracker_expenses;
 create policy "Users manage their own expenses"
@@ -50,6 +58,12 @@ create policy "Users manage their own utility bills"
 drop policy if exists "Users manage their own notes" on public.expense_tracker_notes;
 create policy "Users manage their own notes"
 	on public.expense_tracker_notes for all to authenticated
+	using ((select auth.uid()) = user_id)
+	with check ((select auth.uid()) = user_id);
+
+drop policy if exists "Users manage their own categories" on public.expense_tracker_categories;
+create policy "Users manage their own categories"
+	on public.expense_tracker_categories for all to authenticated
 	using ((select auth.uid()) = user_id)
 	with check ((select auth.uid()) = user_id);
 
@@ -80,6 +94,16 @@ begin
 			from public.expense_tracker_data d
 			cross join lateral jsonb_array_elements(coalesce(d.utility_bills, '[]'::jsonb)) as item(value)
 			on conflict (user_id, id) do nothing;
+
+			insert into public.expense_tracker_categories (user_id, name)
+			select distinct on (d.user_id, lower(btrim(item.value->>'cat')))
+				d.user_id, btrim(item.value->>'cat')
+			from public.expense_tracker_data d
+			cross join lateral jsonb_array_elements(coalesce(d.expenses, '[]'::jsonb)) as item(value)
+			where nullif(btrim(item.value->>'cat'), '') is not null
+				and lower(btrim(item.value->>'cat')) not in ('food', 'transport', 'bills', 'shopping', 'health', 'fun', 'other')
+			order by d.user_id, lower(btrim(item.value->>'cat')), btrim(item.value->>'cat')
+			on conflict (user_id, name) do nothing;
 
 			insert into public.expense_tracker_notes (user_id, content)
 			select user_id, coalesce(notes, '')

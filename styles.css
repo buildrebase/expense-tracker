@@ -25,7 +25,10 @@ h2{font-size:15px;font-weight:600;color:var(--mute);margin:20px 4px 8px}
 .row .m div:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .row .m div:last-child{font-size:14px;color:var(--mute)}
 .row .a{font-weight:600;font-variant-numeric:tabular-nums}
-.row .x{background:none;border:0;color:var(--mute);font-size:20px;padding:4px 8px;cursor:pointer}
+.row-actions{display:flex;align-items:center;gap:2px;flex:none}
+.row .edit,.row .x{background:none;border:0;color:var(--mute);font-size:19px;padding:4px 7px;cursor:pointer}
+.row .edit:hover{color:var(--accText)}
+.row .x:hover{color:var(--red)}
 .empty{text-align:center;color:var(--mute);padding:30px 10px}
 .fab{position:fixed;left:50%;right:auto;bottom:calc(16px + env(safe-area-inset-bottom,0px));width:min(70%,364px);margin:0;transform:translateX(-50%);height:54px;border:0;border-radius:27px;background:var(--acc);color:var(--accInk);font:600 17px inherit;font-family:inherit;cursor:pointer;box-shadow:0 8px 20px rgba(90,160,140,.35)}
 .sheet-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;justify-content:center;z-index:5}
@@ -37,6 +40,9 @@ h2{font-size:15px;font-weight:600;color:var(--mute);margin:20px 4px 8px}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
 .chip{padding:8px 13px;border-radius:20px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-size:15px;cursor:pointer}
 .chip.on{background:var(--acc);color:var(--accInk);border-color:var(--acc)}
+.category-entry{display:flex;align-items:center;gap:8px}
+.category-entry input{width:0;min-width:0;flex:1}
+.category-entry button{flex:none;padding:0 16px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;cursor:pointer}
 .save{display:block;width:70%;margin:18px auto 0;height:50px;border:0;border-radius:14px;background:var(--acc);color:var(--accInk);font:600 17px inherit;font-family:inherit;cursor:pointer}
 .cancel{width:100%;margin-top:6px;height:44px;border:0;background:none;color:var(--mute);font:inherit;cursor:pointer}
 .top{display:flex;align-items:center;gap:6px;margin-bottom:8px}
@@ -69,7 +75,7 @@ button:active{transform:scale(.96)}
 .bar{cursor:pointer;border-radius:10px;padding:4px 8px;margin:6px -8px;transition:background .15s}
 .bar.on{background:var(--bg)}
 .hint{font-size:13px;color:var(--mute);text-align:center;margin-top:6px}
-.ico{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;font-size:19px;flex:none}
+.ico{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;font-size:19px;flex:none;background:var(--line)}
 .sheet{animation:up .25s ease}
 @keyframes up{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
 .row{transition:opacity .25s,transform .25s}
@@ -100,7 +106,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 .chart-legend{display:grid;gap:3px;min-width:0}
 .legend-item{display:grid;grid-template-columns:10px minmax(0,1fr) auto;align-items:center;gap:7px;width:100%;padding:6px 4px;border:0;border-radius:6px;background:none;color:var(--ink);font:inherit;font-size:13px;text-align:left;cursor:pointer}
 .legend-item:hover,.legend-item.selected{background:var(--bg)}
-.legend-dot{width:9px;height:9px;border-radius:50%}
+.legend-dot{width:9px;height:9px;border-radius:50%;background:var(--line)}
 .legend-value{color:var(--mute);font-variant-numeric:tabular-nums}
 #notes,#bills,#authNameField,#dueDayField,#userName,#signOut{display:none}
 .card.flush{margin-bottom:0}

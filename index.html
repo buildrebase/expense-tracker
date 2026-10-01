@@ -51,7 +51,7 @@
 <div class="sheet-bg" id="bg">
   <div class="sheet" id="entrySheet" role="dialog" aria-label="Add expense">
     <input class="amt" id="amt" type="text" inputmode="decimal" placeholder="0" aria-label="Amount">
-    <div id="categoryField"><label>Category</label><div class="chips" id="chips"></div></div>
+    <div id="categoryField"><label>Category</label><div class="chips" id="chips"></div><label for="customCategory">Add a category</label><div class="category-entry"><input id="customCategory" type="text" maxlength="32" placeholder="e.g. Pets"><button id="addCategory" type="button">Add</button></div></div>
     <label id="noteLabel" for="note">Note</label><input id="note" type="text" placeholder="What was it for?">
     <label id="dateLabel" for="date">Date</label><input id="date" type="date">
     <div id="dueDayField"><label for="dueDay">Due day of month</label><input id="dueDay" type="number" min="1" max="31" step="1" value="1"></div>

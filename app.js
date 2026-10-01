@@ -1,12 +1,13 @@
 const CUR="₹", CATS=["Food","Transport","Bills","Shopping","Health","Fun","Other"],
 EMO={Food:"🍜",Transport:"🚌",Bills:"🧾",Shopping:"🛍️",Health:"💊",Fun:"🎬",Other:"✨"},
 COL={Food:"#F6C9A8",Transport:"#B9D8F0",Bills:"#D9CBF0",Shopping:"#F4BFD0",Health:"#BFE5D0",Fun:"#F7E3A1",Other:"#D5DEDB"};
-const KEY="expenses-v1", BILL_KEY="utility-bills-v2", OLD_BILL_KEY="utility-bills-v1";
+const KEY="expenses-v1", BILL_KEY="utility-bills-v2", OLD_BILL_KEY="utility-bills-v1", CUSTOM_CATS_KEY="expense-categories-v1";
 const SUPABASE_URL="https://btdkdlrflfcmnmmvwxxu.supabase.co", SUPABASE_ANON_KEY="sb_publishable_btfw7hpVeyc7KpOsqVnnvg_lOHde3Im";
-let items=[], utilityBills=[], filt=null, shown=0, billShown=0, cat=CATS[0], view=new Date(); view.setDate(1);
+let items=[], utilityBills=[], customCats=[], filt=null, shown=0, billShown=0, cat=CATS[0], view=new Date(); view.setDate(1);
 const $=id=>document.getElementById(id);
 let supaClient=null,cloudUser=null,cloudReady=false,authMode="signin";
 try{items=JSON.parse(localStorage.getItem(KEY)||"[]")||[]}catch(e){items=[]}
+try{customCats=[...new Set(JSON.parse(localStorage.getItem(CUSTOM_CATS_KEY)||"[]").filter(name=>typeof name==="string"&&name.trim()).map(name=>name.trim()))].filter(name=>!CATS.some(builtin=>builtin.toLocaleLowerCase()===name.toLocaleLowerCase()))}catch(e){customCats=[]}
 try{
   const savedBills=localStorage.getItem(BILL_KEY);
   if(savedBills!==null)utilityBills=JSON.parse(savedBills)||[];
@@ -18,6 +19,7 @@ try{
 function persist(){try{localStorage.setItem(KEY,JSON.stringify(items))}catch(e){}}
 function persistBills(){try{localStorage.setItem(BILL_KEY,JSON.stringify(utilityBills))}catch(e){}}
 const money=n=>CUR+n.toLocaleString("en-IN",{maximumFractionDigits:2});
+const categories=()=>[...CATS,...customCats];
 const iso=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
 const esc=s=>s.replace(/[&<>\"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
@@ -40,9 +42,9 @@ function render(){
     const slices=rows.map(([c,v])=>{
       const start=angle;angle+=v/total*Math.PI*2;
       const percent=Math.round(v/total*100);
-      return `<path class="slice${filt===c?" selected":""}" d="${piePath(start,angle)}" fill="${COL[c]||COL.Other}" data-c="${c}" role="button" tabindex="0" aria-label="Filter ${c}, ${money(v)}, ${percent}%" aria-pressed="${filt===c}"><title>${c}: ${money(v)} (${percent}%)</title></path>`;
+      return `<path class="slice${filt===c?" selected":""}" d="${piePath(start,angle)}" fill="${COL[c]||COL.Other}" data-c="${esc(c)}" role="button" tabindex="0" aria-label="Filter ${esc(c)}, ${money(v)}, ${percent}%" aria-pressed="${filt===c}"><title>${esc(c)}: ${money(v)} (${percent}%)</title></path>`;
     }).join("");
-    const legend=rows.map(([c,v])=>`<button class="legend-item${filt===c?" selected":""}" data-c="${c}" aria-pressed="${filt===c}"><span class="legend-dot" data-category="${c}"></span><span>${c}</span><span class="legend-value">${money(v)}</span></button>`).join("");
+    const legend=rows.map(([c,v])=>`<button class="legend-item${filt===c?" selected":""}" data-c="${esc(c)}" aria-pressed="${filt===c}"><span class="legend-dot" data-category="${esc(c)}"></span><span>${esc(c)}</span><span class="legend-value">${money(v)}</span></button>`).join("");
     $("cats").innerHTML=`<h2 class="chart-head">Spending by category</h2><div class="chart-layout"><svg class="donut" viewBox="0 0 160 160" role="img" aria-label="Monthly spending by category">${slices}<circle class="donut-hole" cx="80" cy="80" r="43"></circle><text class="donut-total" x="80" y="78">${money(total)}</text><text class="donut-label" x="80" y="94">total spent</text></svg><div class="chart-legend">${legend}</div></div>`;
   }else $("cats").innerHTML="";
   renderBills();
@@ -56,7 +58,7 @@ function render(){
       const label=new Date(e.date+"T00:00").toLocaleDateString("en-IN",{weekday:"short",day:"numeric",month:"short"});
       html+=`<h2>${label}</h2><div class="card flush">`;
     }
-    html+=`<div class="row"><div class="ico" data-category="${e.cat}">${EMO[e.cat]||"✨"}</div><div class="m"><div>${esc(e.note||e.cat)}</div><div>${e.cat}</div></div><div class="a">${money(e.amount)}</div><button class="x" data-id="${e.id}" aria-label="Delete expense">✕</button></div>`;
+    html+=`<div class="row"><div class="ico" data-category="${esc(e.cat)}">${EMO[e.cat]||"✨"}</div><div class="m"><div>${esc(e.note||e.cat)}</div><div>${esc(e.cat)}</div></div><div class="a">${money(e.amount)}</div><div class="row-actions"><button class="edit" data-edit-id="${e.id}" aria-label="Edit expense">✎</button><button class="x" data-id="${e.id}" aria-label="Delete expense">✕</button></div></div>`;
   });
   $("list").innerHTML=html+"</div>";
 }
@@ -104,19 +106,22 @@ function billState(b,ym){
 }
 
 function chips(){
-  $("chips").innerHTML=CATS.map(c=>`<button class="chip${c===cat?" on":""}" data-c="${c}">${EMO[c]} ${c}</button>`).join("");
+  $("chips").innerHTML=categories().map(c=>`<button class="chip${c===cat?" on":""}" data-c="${esc(c)}">${EMO[c]||"✨"} ${esc(c)}</button>`).join("");
 }
-function openSheet(){
+function openSheet(expense=null){
   $("entrySheet").dataset.kind="expense";
-  $("entrySheet").setAttribute("aria-label","Add expense");
+  if(expense)$("entrySheet").dataset.expenseId=expense.id;else delete $("entrySheet").dataset.expenseId;
+  $("entrySheet").setAttribute("aria-label",expense?"Edit expense":"Add expense");
   $("categoryField").style.display="block";$("noteLabel").textContent="Note";$("note").placeholder="What was it for?";
-  $("dateLabel").textContent="Date";$("date").type="date";$("date").value=iso(new Date());$("save").textContent="Save expense";
+  $("dateLabel").textContent="Date";$("date").type="date";$("save").textContent=expense?"Save changes":"Save expense";
   $("dueDayField").style.display="none";
-  $("amt").value="";$("note").value="";$("date").value=iso(new Date());cat=CATS[0];chips();
+  $("amt").value=expense?String(expense.amount):"";$("note").value=expense?expense.note||"":"";$("date").value=expense?expense.date:iso(new Date());cat=expense?expense.cat:CATS[0];chips();
+  $("customCategory").value="";
   chk();$("bg").classList.add("on");setTimeout(() => $("amt").focus(), 50);
 }
 function openBillSheet(){
   $("entrySheet").dataset.kind="bill";
+  delete $("entrySheet").dataset.expenseId;
   $("entrySheet").setAttribute("aria-label","Add monthly bill");
   $("categoryField").style.display="none";$("noteLabel").textContent="Utility";$("note").placeholder="Electricity, water, internet…";
   $("dateLabel").textContent="Starts in";$("date").type="month";$("date").value=iso(view).slice(0,7);
@@ -128,10 +133,19 @@ function chk(){$("save").classList.toggle("ready",parseFloat($("amt").value.repl
 $("amt").oninput=chk;
 function closeSheet(){$("bg").classList.remove("on")}
 
-$("add").onclick=openSheet;
+$("add").onclick=()=>openSheet();
 $("cancel").onclick=closeSheet;
 $("bg").onclick=e=>{if(e.target===$("bg"))closeSheet()};
 $("chips").onclick=e=>{const c=e.target.dataset.c;if(c){cat=c;chips()}};
+$("addCategory").onclick=()=>{
+  const name=$("customCategory").value.trim();
+  if(!name)return;
+  const existing=categories().find(category=>category.toLocaleLowerCase()===name.toLocaleLowerCase());
+  if(existing){cat=existing;$("customCategory").value="";chips();toast("Category already exists");return}
+  customCats.push(name);
+  try{localStorage.setItem(CUSTOM_CATS_KEY,JSON.stringify(customCats))}catch(e){}
+  syncCategory(name);cat=name;$("customCategory").value="";chips();toast("Category added");
+};
 $("save").onclick=()=>{
   const amount=parseFloat($("amt").value.replace(",","."));
   if(!(amount>0)){$("amt").focus();return}
@@ -146,13 +160,24 @@ $("save").onclick=()=>{
     view=new Date(month+"-01T00:00");render();return;
   }
   const date=$("date").value||iso(new Date());
-  const expense={id:Date.now(),amount,cat,note:$("note").value.trim(),date};
-  items.push(expense);
-  persist();syncExpense(expense);closeSheet();toast("Expense saved ✓");
+  const expenseId=$("entrySheet").dataset.expenseId;
+  let expense;
+  if(expenseId){
+    const index=items.findIndex(item=>String(item.id)===expenseId);
+    if(index<0)return;
+    expense={...items[index],amount,cat,note:$("note").value.trim(),date};
+    items[index]=expense;
+  }else{
+    expense={id:Date.now(),amount,cat,note:$("note").value.trim(),date};
+    items.push(expense);
+  }
+  persist();syncExpense(expense);closeSheet();toast(expenseId?"Expense updated ✓":"Expense saved ✓");
   view=new Date(date+"T00:00");view.setDate(1);render();
 };
 $("list").onclick=e=>{
   if(e.target.id==="clr"){filt=null;render();return}
+  const editButton=e.target.closest("[data-edit-id]");
+  if(editButton){const expense=items.find(item=>String(item.id)===editButton.dataset.editId);if(expense)openSheet(expense);return}
   const id=e.target.dataset.id;
   if(id&&confirm("Delete this expense?")){e.target.closest(".row").classList.add("out");setTimeout(()=>{items=items.filter(x=>String(x.id)!==id);persist();syncDelete("expense_tracker_expenses",id);render();toast("Deleted")},250)}
 };
@@ -192,7 +217,7 @@ function tab(n){
   $("notes").style.display=n===2?"block":"none";
   $("add").style.display=n===2?"none":"block";
   $("add").textContent=n===1?"Add monthly bill":"Add expense";
-  $("add").onclick=n===1?openBillSheet:openSheet;
+  $("add").onclick=n===1?openBillSheet:()=>openSheet();
   $("title").textContent=n===1?"Utility Bills":n===2?"Notes":"Expenses";
   $("tabE").classList.toggle("on",n===0);$("tabB").classList.toggle("on",n===1);$("tabN").classList.toggle("on",n===2);
   $("tabB").setAttribute("aria-selected",String(n===1));
@@ -231,6 +256,9 @@ async function syncMutation(request){
 function syncExpense(expense){
   return syncMutation(()=>supaClient.from("expense_tracker_expenses").upsert(expenseRow(expense),{onConflict:"user_id,id"}));
 }
+function syncCategory(name){
+  return syncMutation(()=>supaClient.from("expense_tracker_categories").upsert({user_id:cloudUser.id,name},{onConflict:"user_id,name"}));
+}
 function syncBill(bill){
   return syncMutation(()=>supaClient.from("expense_tracker_utility_bills").upsert(billRow(bill),{onConflict:"user_id,id"}));
 }
@@ -256,22 +284,30 @@ async function activateCloudSession(session){
   if(cloudReady&&cloudUser?.id===session.user.id)return;
   cloudUser=session.user;cloudReady=false;$("authGate").style.display="grid";$("authStatus").textContent="Loading your cloud data…";
   try{
-    const [expenses,bills,noteResult]=await Promise.all([
+    const [expenses,bills,categoryResult,noteResult]=await Promise.all([
       fetchAllRows("expense_tracker_expenses","id,amount,category,note,date",cloudUser.id),
       fetchAllRows("expense_tracker_utility_bills","id,name,start_month,due_day,months",cloudUser.id),
+      supaClient.from("expense_tracker_categories").select("name").eq("user_id",cloudUser.id).order("name"),
       supaClient.from("expense_tracker_notes").select("content").eq("user_id",cloudUser.id).maybeSingle()
     ]);
+    if(categoryResult.error)throw categoryResult.error;
     if(noteResult.error)throw noteResult.error;
-    const hasCloudData=expenses.length||bills.length||noteResult.data;
+    const cloudCategories=categoryResult.data.map(row=>row.name);
+    const categoriesFromExpenses=expenses.map(row=>row.category).filter(name=>!CATS.some(builtin=>builtin.toLocaleLowerCase()===name.toLocaleLowerCase()));
+    const cloudCustomCats=[...new Map([...cloudCategories,...categoriesFromExpenses].filter(name=>name&&!CATS.some(builtin=>builtin.toLocaleLowerCase()===name.toLocaleLowerCase())).map(name=>[name.toLocaleLowerCase(),name])).values()];
+    const hasCloudData=expenses.length||bills.length||categoryResult.data.length||noteResult.data;
     if(hasCloudData){
+      customCats=cloudCustomCats;
       items=expenses.map(row=>({id:Number(row.id),amount:Number(row.amount),cat:row.category,note:row.note||"",date:row.date}));
       utilityBills=bills.map(row=>({id:Number(row.id),name:row.name,startMonth:row.start_month,dueDay:row.due_day,months:row.months||{}}));
       $("noteText").value=noteResult.data?.content||"";
-      localStorage.setItem(KEY,JSON.stringify(items));localStorage.setItem(BILL_KEY,JSON.stringify(utilityBills));localStorage.setItem("notes-v1",$("noteText").value);
+      localStorage.setItem(KEY,JSON.stringify(items));localStorage.setItem(BILL_KEY,JSON.stringify(utilityBills));localStorage.setItem("notes-v1",$("noteText").value);localStorage.setItem(CUSTOM_CATS_KEY,JSON.stringify(customCats));
     }else{
+      try{localStorage.setItem(CUSTOM_CATS_KEY,JSON.stringify(customCats))}catch(e){}
       const initialWrites=[];
       if(items.length)initialWrites.push(supaClient.from("expense_tracker_expenses").upsert(items.map(item=>expenseRow(item,cloudUser.id)),{onConflict:"user_id,id"}));
       if(utilityBills.length)initialWrites.push(supaClient.from("expense_tracker_utility_bills").upsert(utilityBills.map(bill=>billRow(bill,cloudUser.id)),{onConflict:"user_id,id"}));
+      if(customCats.length)initialWrites.push(supaClient.from("expense_tracker_categories").upsert(customCats.map(name=>({user_id:cloudUser.id,name})),{onConflict:"user_id,name"}));
       initialWrites.push(supaClient.from("expense_tracker_notes").upsert({user_id:cloudUser.id,content:$("noteText").value},{onConflict:"user_id"}));
       const writeResults=await Promise.all(initialWrites);
       const failedWrite=writeResults.find(result=>result.error);
