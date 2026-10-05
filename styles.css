@@ -46,7 +46,9 @@ h2{font-size:15px;font-weight:600;color:var(--mute);margin:20px 4px 8px}
 .save{display:block;width:70%;margin:18px auto 0;height:50px;border:0;border-radius:14px;background:var(--acc);color:var(--accInk);font:600 17px inherit;font-family:inherit;cursor:pointer}
 .cancel{width:100%;margin-top:6px;height:44px;border:0;background:none;color:var(--mute);font:inherit;cursor:pointer}
 .top{display:flex;align-items:center;gap:6px;margin-bottom:8px}
-.top h1{font-size:20px;margin:0;font-weight:700}
+.brand{display:flex;align-items:center;gap:9px;min-width:0}
+.brand-mark{display:block;width:32px;height:32px;flex:none}
+.brand h1{font-size:20px;margin:0;font-weight:700}
 .burger{background:none;border:0;color:var(--ink);padding:10px;margin-left:-10px;cursor:pointer;display:flex;flex-direction:column;gap:5px}
 .burger i{display:block;width:22px;height:2.5px;border-radius:2px;background:var(--ink)}
 .drawer-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;z-index:8}

@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Expenses</title>
+<link rel="icon" type="image/svg+xml" href="logo.svg">
 <link rel="stylesheet" href="styles.css">
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script defer src="app.js"></script>
@@ -23,7 +24,7 @@
   </form>
 </div>
 <main>
-  <div class="top"><h1 id="title">Expenses</h1><div class="cloud-actions"><button class="identity" id="userName" type="button" title="Edit display name"></button><span id="syncStatus">Local only</span><button id="signOut" type="button">Sign out</button></div></div>
+  <div class="top"><div class="brand"><img class="brand-mark" src="logo.svg" alt=""><h1 id="title">Expenses</h1></div><div class="cloud-actions"><button class="identity" id="userName" type="button" title="Edit display name"></button><span id="syncStatus">Local only</span><button id="signOut" type="button">Sign out</button></div></div>
   <div id="exp">
     <div class="nav"><button id="prev" aria-label="Previous month">‹</button><b id="month"></b><button id="next" aria-label="Next month">›</button></div>
     <div class="total"><div class="n" id="total"></div><div class="l">spent this month</div></div>
