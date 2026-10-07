@@ -9,6 +9,13 @@ const $=id=>document.getElementById(id);
 let supaClient=null,cloudUser=null,cloudReady=false,authMode="signin";
 let passwordRecoveryPending=new URLSearchParams(location.hash.slice(1)).get("type")==="recovery";
 const internalAuthEmail=username=>`${username}@${INTERNAL_EMAIL_DOMAIN}`;
+const storageKey=(key,userId=cloudUser?.id)=>userId?`${key}:${userId}`:key;
+function loadUserCache(userId){
+  try{items=JSON.parse(localStorage.getItem(storageKey(KEY,userId))||"[]")||[]}catch(e){items=[]}
+  try{utilityBills=JSON.parse(localStorage.getItem(storageKey(BILL_KEY,userId))||"[]")||[]}catch(e){utilityBills=[]}
+  try{customCats=JSON.parse(localStorage.getItem(storageKey(CUSTOM_CATS_KEY,userId))||"[]").filter(name=>typeof name==="string"&&name.trim()).map(name=>name.trim()).filter(name=>!CATS.some(builtin=>builtin.toLocaleLowerCase()===name.toLocaleLowerCase()))}catch(e){customCats=[]}
+  try{$("noteText").value=localStorage.getItem(storageKey("notes-v1",userId))||""}catch(e){$("noteText").value=""}
+}
 try{items=JSON.parse(localStorage.getItem(KEY)||"[]")||[]}catch(e){items=[]}
 try{customCats=[...new Set(JSON.parse(localStorage.getItem(CUSTOM_CATS_KEY)||"[]").filter(name=>typeof name==="string"&&name.trim()).map(name=>name.trim()))].filter(name=>!CATS.some(builtin=>builtin.toLocaleLowerCase()===name.toLocaleLowerCase()))}catch(e){customCats=[]}
 try{
@@ -19,8 +26,8 @@ try{
     if(utilityBills.length)localStorage.setItem(BILL_KEY,JSON.stringify(utilityBills));
   }
 }catch(e){utilityBills=[]}
-function persist(){try{localStorage.setItem(KEY,JSON.stringify(items))}catch(e){}}
-function persistBills(){try{localStorage.setItem(BILL_KEY,JSON.stringify(utilityBills))}catch(e){}}
+function persist(){try{localStorage.setItem(storageKey(KEY),JSON.stringify(items))}catch(e){}}
+function persistBills(){try{localStorage.setItem(storageKey(BILL_KEY),JSON.stringify(utilityBills))}catch(e){}}
 const money=n=>CUR+n.toLocaleString("en-IN",{maximumFractionDigits:2});
 const categories=()=>[...CATS,...customCats];
 const iso=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
@@ -146,7 +153,7 @@ $("addCategory").onclick=()=>{
   const existing=categories().find(category=>category.toLocaleLowerCase()===name.toLocaleLowerCase());
   if(existing){cat=existing;$("customCategory").value="";chips();toast("Category already exists");return}
   customCats.push(name);
-  try{localStorage.setItem(CUSTOM_CATS_KEY,JSON.stringify(customCats))}catch(e){}
+  try{localStorage.setItem(storageKey(CUSTOM_CATS_KEY),JSON.stringify(customCats))}catch(e){}
   syncCategory(name);cat=name;$("customCategory").value="";chips();toast("Category added");
 };
 $("save").onclick=()=>{
@@ -236,11 +243,11 @@ try{$("noteText").value=localStorage.getItem("notes-v1")||""}catch(e){}
 let nt;
 $("noteText").oninput=()=>{
   $("saved").textContent="Saving…";clearTimeout(nt);
-  nt=setTimeout(()=>{try{localStorage.setItem("notes-v1",$("noteText").value);$("saved").textContent="Saved";syncNotes($("noteText").value)}catch(e){$("saved").textContent="Could not save"}},400);
+  nt=setTimeout(()=>{try{localStorage.setItem(storageKey("notes-v1"),$("noteText").value);$("saved").textContent="Saved";syncNotes($("noteText").value)}catch(e){$("saved").textContent="Could not save"}},400);
 };
+initCloud();
 render();
 tab(0);
-initCloud();
 
 function expenseRow(expense,userId=cloudUser.id){
   return {user_id:userId,id:expense.id,amount:expense.amount,category:expense.cat,note:expense.note||"",date:expense.date};
@@ -286,7 +293,7 @@ async function activateCloudSession(session){
     cloudUser=null;cloudReady=false;$("userName").style.display="none";$("signOut").style.display="none";$("authGate").style.display="grid";$("authStatus").textContent="";return;
   }
   if(cloudReady&&cloudUser?.id===session.user.id)return;
-  cloudUser=session.user;cloudReady=false;$("authGate").style.display="grid";$("authStatus").textContent="Loading your cloud data…";
+  cloudUser=session.user;cloudReady=false;loadUserCache(cloudUser.id);$("authGate").style.display="grid";$("authStatus").textContent="Loading your cloud data…";
   try{
     const [expenses,bills,categoryResult,noteResult]=await Promise.all([
       fetchAllRows("expense_tracker_expenses","id,amount,category,note,date",cloudUser.id),
@@ -305,9 +312,9 @@ async function activateCloudSession(session){
       items=expenses.map(row=>({id:Number(row.id),amount:Number(row.amount),cat:row.category,note:row.note||"",date:row.date}));
       utilityBills=bills.map(row=>({id:Number(row.id),name:row.name,startMonth:row.start_month,dueDay:row.due_day,months:row.months||{}}));
       $("noteText").value=noteResult.data?.content||"";
-      localStorage.setItem(KEY,JSON.stringify(items));localStorage.setItem(BILL_KEY,JSON.stringify(utilityBills));localStorage.setItem("notes-v1",$("noteText").value);localStorage.setItem(CUSTOM_CATS_KEY,JSON.stringify(customCats));
+      localStorage.setItem(storageKey(KEY),JSON.stringify(items));localStorage.setItem(storageKey(BILL_KEY),JSON.stringify(utilityBills));localStorage.setItem(storageKey("notes-v1"),$("noteText").value);localStorage.setItem(storageKey(CUSTOM_CATS_KEY),JSON.stringify(customCats));
     }else{
-      try{localStorage.setItem(CUSTOM_CATS_KEY,JSON.stringify(customCats))}catch(e){}
+      try{localStorage.setItem(storageKey(CUSTOM_CATS_KEY),JSON.stringify(customCats))}catch(e){}
       const initialWrites=[];
       if(items.length)initialWrites.push(supaClient.from("expense_tracker_expenses").upsert(items.map(item=>expenseRow(item,cloudUser.id)),{onConflict:"user_id,id"}));
       if(utilityBills.length)initialWrites.push(supaClient.from("expense_tracker_utility_bills").upsert(utilityBills.map(bill=>billRow(bill,cloudUser.id)),{onConflict:"user_id,id"}));
@@ -325,6 +332,9 @@ async function activateCloudSession(session){
 function initCloud(){
   if(!SUPABASE_URL||!SUPABASE_ANON_KEY){$("syncStatus").textContent="Cloud not configured";return}
   if(!window.supabase){$("syncStatus").textContent="Cloud library unavailable";return}
+  $("authGate").style.display="grid";
+  $("authStatus").textContent="Checking your account…";
+  $("syncStatus").textContent="Connecting…";
   supaClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
   supaClient.auth.onAuthStateChange((event,session)=>{
     if(event==="PASSWORD_RECOVERY"){passwordRecoveryPending=true;showPasswordResetForm();return}

@@ -5,6 +5,7 @@
 - Added Supabase authentication and per-user cloud sync.
 - Changed expense and utility-bill sync to write only the record created, changed, or deleted. Notes sync separately.
 - Added expense editing and custom categories, synced per user across devices.
+- Scoped browser caches by Supabase user ID so new accounts do not inherit another account's local records.
 - Kept browser-local storage as a cache and added paginated cloud reads for larger histories.
 - Added a receipt-and-check logo for the app header, browser tab, and home-screen icons.
 - Replaced visible email sign-in with username/password accounts and a support-mediated password reset flow.
