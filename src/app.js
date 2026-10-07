@@ -1,10 +1,11 @@
 const CUR="₹", CATS=["Food","Transport","Bills","Shopping","Health","Fun","Other"],
 EMO={Food:"🍜",Transport:"🚌",Bills:"🧾",Shopping:"🛍️",Health:"💊",Fun:"🎬",Other:"✨"},
 COL={Food:"#F6C9A8",Transport:"#B9D8F0",Bills:"#D9CBF0",Shopping:"#F4BFD0",Health:"#BFE5D0",Fun:"#F7E3A1",Other:"#D5DEDB"};
-const KEY="expenses-v1", BILL_KEY="utility-bills-v2", OLD_BILL_KEY="utility-bills-v1", CUSTOM_CATS_KEY="expense-categories-v1";
+const KEY="expenses-v1", BILL_KEY="utility-bills-v2", OLD_BILL_KEY="utility-bills-v1", CUSTOM_CATS_KEY="expense-categories-v1", BUDGETS_KEY="expense-budgets-v1";
+const OVERALL_BUDGET="__overall__";
 const INTERNAL_EMAIL_DOMAIN="accounts.expense-tracker.invalid", SUPPORT_EMAIL="lazychess08@gmail.com";
 const SUPABASE_URL="https://btdkdlrflfcmnmmvwxxu.supabase.co", SUPABASE_ANON_KEY="sb_publishable_btfw7hpVeyc7KpOsqVnnvg_lOHde3Im";
-let items=[], utilityBills=[], customCats=[], filt=null, shown=0, billShown=0, cat=CATS[0], view=new Date(); view.setDate(1);
+let items=[], utilityBills=[], customCats=[], budgets=[], filt=null, shown=0, billShown=0, cat=CATS[0], view=new Date(); view.setDate(1);
 const $=id=>document.getElementById(id);
 let supaClient=null,cloudUser=null,cloudReady=false,authMode="signin";
 let passwordRecoveryPending=new URLSearchParams(location.hash.slice(1)).get("type")==="recovery";
@@ -14,9 +15,11 @@ function loadUserCache(userId){
   try{items=JSON.parse(localStorage.getItem(storageKey(KEY,userId))||"[]")||[]}catch(e){items=[]}
   try{utilityBills=JSON.parse(localStorage.getItem(storageKey(BILL_KEY,userId))||"[]")||[]}catch(e){utilityBills=[]}
   try{customCats=JSON.parse(localStorage.getItem(storageKey(CUSTOM_CATS_KEY,userId))||"[]").filter(name=>typeof name==="string"&&name.trim()).map(name=>name.trim()).filter(name=>!CATS.some(builtin=>builtin.toLocaleLowerCase()===name.toLocaleLowerCase()))}catch(e){customCats=[]}
+  try{budgets=JSON.parse(localStorage.getItem(storageKey(BUDGETS_KEY,userId))||"[]")||[]}catch(e){budgets=[]}
   try{$("noteText").value=localStorage.getItem(storageKey("notes-v1",userId))||""}catch(e){$("noteText").value=""}
 }
 try{items=JSON.parse(localStorage.getItem(KEY)||"[]")||[]}catch(e){items=[]}
+try{budgets=JSON.parse(localStorage.getItem(BUDGETS_KEY)||"[]")||[]}catch(e){budgets=[]}
 try{customCats=[...new Set(JSON.parse(localStorage.getItem(CUSTOM_CATS_KEY)||"[]").filter(name=>typeof name==="string"&&name.trim()).map(name=>name.trim()))].filter(name=>!CATS.some(builtin=>builtin.toLocaleLowerCase()===name.toLocaleLowerCase()))}catch(e){customCats=[]}
 try{
   const savedBills=localStorage.getItem(BILL_KEY);
@@ -28,6 +31,7 @@ try{
 }catch(e){utilityBills=[]}
 function persist(){try{localStorage.setItem(storageKey(KEY),JSON.stringify(items))}catch(e){}}
 function persistBills(){try{localStorage.setItem(storageKey(BILL_KEY),JSON.stringify(utilityBills))}catch(e){}}
+function persistBudgets(){try{localStorage.setItem(storageKey(BUDGETS_KEY),JSON.stringify(budgets))}catch(e){}}
 const money=n=>CUR+n.toLocaleString("en-IN",{maximumFractionDigits:2});
 const categories=()=>[...CATS,...customCats];
 const iso=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
@@ -40,39 +44,39 @@ function render(){
   const ym=iso(view).slice(0,7);
   $("month").textContent=view.toLocaleDateString("en-IN",{month:"long",year:"numeric"});
   $("billMonth").textContent=$("month").textContent;
-  const all=items.filter(e=>e.date.startsWith(ym));
-  const total=all.reduce((s,e)=>s+e.amount,0);
-  countTo(total);
-  const by={};all.forEach(e=>by[e.cat]=(by[e.cat]||0)+e.amount);
-  const rows=Object.entries(by).sort((a,b)=>b[1]-a[1]);
-  if(filt&&!by[filt])filt=null;
-  $("cats").style.display=rows.length?"block":"none";
-  if(rows.length){
-    let angle=-Math.PI/2;
-    const slices=rows.map(([c,v])=>{
-      const start=angle;angle+=v/total*Math.PI*2;
-      const percent=Math.round(v/total*100);
-      return `<path class="slice${filt===c?" selected":""}" d="${piePath(start,angle)}" fill="${COL[c]||COL.Other}" data-c="${esc(c)}" role="button" tabindex="0" aria-label="Filter ${esc(c)}, ${money(v)}, ${percent}%" aria-pressed="${filt===c}"><title>${esc(c)}: ${money(v)} (${percent}%)</title></path>`;
-    }).join("");
-    const legend=rows.map(([c,v])=>`<button class="legend-item${filt===c?" selected":""}" data-c="${esc(c)}" aria-pressed="${filt===c}"><span class="legend-dot" data-category="${esc(c)}"></span><span>${esc(c)}</span><span class="legend-value">${money(v)}</span></button>`).join("");
-    $("cats").innerHTML=`<h2 class="chart-head">Spending by category</h2><div class="chart-layout"><svg class="donut" viewBox="0 0 160 160" role="img" aria-label="Monthly spending by category">${slices}<circle class="donut-hole" cx="80" cy="80" r="43"></circle><text class="donut-total" x="80" y="78">${money(total)}</text><text class="donut-label" x="80" y="94">total spent</text></svg><div class="chart-legend">${legend}</div></div>`;
-  }else $("cats").innerHTML="";
-  renderBills();
-  const list=all.filter(e=>!filt||e.cat===filt).sort((a,b)=>b.date.localeCompare(a.date)||b.id-a.id);
-  if(!list.length){$("list").innerHTML='<div class="empty">No expenses this month.<br>Tap “Add expense” to log one.</div>';return}
-  let html=filt?`<div class="filt"><span>Showing ${EMO[filt]} ${filt}</span><button id="clr">Show all</button></div>`:"",last="";
-  list.forEach(e=>{
-    if(e.date!==last){
-      if(last)html+="</div>";
-      last=e.date;
-      const label=new Date(e.date+"T00:00").toLocaleDateString("en-IN",{weekday:"short",day:"numeric",month:"short"});
-      html+=`<h2>${label}</h2><div class="card flush">`;
-    }
-    html+=`<div class="row"><div class="ico" data-category="${esc(e.cat)}">${EMO[e.cat]||"✨"}</div><div class="m"><div>${esc(e.note||e.cat)}</div><div>${esc(e.cat)}</div></div><div class="a">${money(e.amount)}</div><div class="row-actions"><button class="edit" data-edit-id="${e.id}" aria-label="Edit expense">✎</button><button class="x" data-id="${e.id}" aria-label="Delete expense">✕</button></div></div>`;
-  });
-  $("list").innerHTML=html+"</div>";
-}
-
+    const all=items.filter(e=>e.date.startsWith(ym));
+    const total=all.reduce((s,e)=>s+e.amount,0);
+    countTo(total);
+    const by={};all.forEach(e=>by[e.cat]=(by[e.cat]||0)+e.amount);
+    const rows=Object.entries(by).sort((a,b)=>b[1]-a[1]);
+    if(filt&&!by[filt])filt=null;
+    $("cats").style.display=rows.length?"block":"none";
+    if(rows.length){
+      let angle=-Math.PI/2;
+      const slices=rows.map(([c,v])=>{
+        const start=angle;angle+=v/total*Math.PI*2;
+        const percent=Math.round(v/total*100);
+        return `<path class="slice${filt===c?" selected":""}" d="${piePath(start,angle)}" fill="${COL[c]||COL.Other}" data-c="${esc(c)}" role="button" tabindex="0" aria-label="Filter ${esc(c)}, ${money(v)}, ${percent}%" aria-pressed="${filt===c}"><title>${esc(c)}: ${money(v)} (${percent}%)</title></path>`;
+      }).join("");
+      const legend=rows.map(([c,v])=>`<button class="legend-item${filt===c?" selected":""}" data-c="${esc(c)}" aria-pressed="${filt===c}"><span class="legend-dot" data-category="${esc(c)}"></span><span>${esc(c)}</span><span class="legend-value">${money(v)}</span></button>`).join("");
+      $("cats").innerHTML=`<h2 class="chart-head">Spending by category</h2><div class="chart-layout"><svg class="donut" viewBox="0 0 160 160" role="img" aria-label="Monthly spending by category">${slices}<circle class="donut-hole" cx="80" cy="80" r="43"></circle><text class="donut-total" x="80" y="78">${money(total)}</text><text class="donut-label" x="80" y="94">total spent</text></svg><div class="chart-legend">${legend}</div></div>`;
+    }else $("cats").innerHTML="";
+    renderBills();
+    renderBudgets();
+    const list=all.filter(e=>!filt||e.cat===filt).sort((a,b)=>b.date.localeCompare(a.date)||b.id-a.id);
+    if(!list.length){$("list").innerHTML='<div class="empty">No expenses this month.<br>Tap “Add expense” to log one.</div>';return}
+    let html=filt?`<div class="filt"><span>Showing ${EMO[filt]} ${filt}</span><button id="clr">Show all</button></div>`:"",last="";
+    list.forEach(e=>{
+      if(e.date!==last){
+        if(last)html+="</div>";
+        last=e.date;
+        const label=new Date(e.date+"T00:00").toLocaleDateString("en-IN",{weekday:"short",day:"numeric",month:"short"});
+        html+=`<h2>${label}</h2><div class="card flush">`;
+      }
+      html+=`<div class="row"><div class="ico" data-category="${esc(e.cat)}">${EMO[e.cat]||"✨"}</div><div class="m"><div>${esc(e.note||e.cat)}</div><div>${esc(e.cat)}</div></div><div class="a">${money(e.amount)}</div><div class="row-actions"><button class="edit" data-edit-id="${e.id}" aria-label="Edit expense">✎</button><button class="x" data-id="${e.id}" aria-label="Delete expense">✕</button></div></div>`;
+    });
+    $("list").innerHTML=html+"</div>";
+  }
 function piePath(start,end){
   const cx=80,cy=80,r=70;
   const point=angle=>[cx+r*Math.cos(angle),cy+r*Math.sin(angle)];
@@ -97,6 +101,29 @@ function renderBills(){
   (function f(now){const p=Math.min(1,(now-st)/450),e=1-Math.pow(1-p,3);$("billTotal").textContent=money(Math.round((from+(total-from)*e)*100)/100);if(p<1)requestAnimationFrame(f)})(st);
   if(!monthBills.length){$("billList").innerHTML='<div class="empty">No monthly bills yet.<br>Add a bill to start tracking it.</div>';return}
   $("billList").innerHTML='<div class="card flush">'+monthBills.map(b=>{const due=billDueInfo(b.bill,ym);return `<div class="row bill-row"><div class="bill-status" role="radiogroup" aria-label="${esc(b.bill.name)} status"><label><input type="radio" name="bill-status-${b.bill.id}" value="paid" data-bill-status="paid" data-bill-id="${b.bill.id}"${b.paid?' checked':''}>Paid</label><label><input type="radio" name="bill-status-${b.bill.id}" value="due" data-bill-status="due" data-bill-id="${b.bill.id}"${b.paid?'':' checked'}>Due</label></div><div class="m"><div>${esc(b.bill.name)}</div><div class="bill-meta${!b.paid&&due.overdue?' overdue':''}">${b.paid?'Paid':due.overdue?'Overdue':`Due ${due.label}`}</div></div><label class="bill-amount"><span>₹</span><input type="number" min="0" step="0.01" value="${b.amount}" aria-label="${esc(b.bill.name)} amount" data-bill-amount data-bill-id="${b.bill.id}"></label><button class="x" data-bill-delete="${b.bill.id}" aria-label="Delete ${esc(b.bill.name)}">✕</button></div>`}).join("")+'</div>';
+}
+
+function renderBudgets(){
+  const month=iso(view).slice(0,7);
+  const monthItems=items.filter(item=>item.date.startsWith(month));
+  const spent=monthItems.reduce((sum,item)=>sum+item.amount,0);
+  const monthBudgets=budgets.filter(budget=>budget.month===month);
+  const overall=monthBudgets.find(budget=>budget.category===OVERALL_BUDGET);
+  $("budgetMonth").textContent=view.toLocaleDateString("en-IN",{month:"long",year:"numeric"});
+  $("budgetSpent").textContent=money(spent);
+  if(overall){
+    const remaining=overall.amount-spent,percent=spent/overall.amount*100,over=remaining<0;
+      $("budgetSummary").innerHTML=`<div class="budget-summary"><div class="budget-summary-top"><div class="budget-summary-copy"><strong>${money(spent)} of ${money(overall.amount)} spent</strong><span>${over?`${money(-remaining)} over budget`:`${money(remaining)} remaining`}</span></div><div class="budget-actions"><button type="button" data-budget-edit="${OVERALL_BUDGET}" data-budget-month="${month}" aria-label="Edit overall budget">✎</button><button type="button" data-budget-delete="${OVERALL_BUDGET}" data-budget-month="${month}" aria-label="Delete overall budget">✕</button></div></div><div class="budget-track"><div class="budget-fill${over?" over":""}" style="width:${Math.min(100,percent)}%"></div></div></div>`;
+  }else{
+    $("budgetSummary").innerHTML='<div class="budget-summary"><strong>No overall limit set</strong><span>You can still set limits for individual categories.</span></div>';
+  }
+  const categoryBudgets=monthBudgets.filter(budget=>budget.category!==OVERALL_BUDGET).sort((a,b)=>a.category.localeCompare(b.category));
+  if(!categoryBudgets.length){$("budgetList").innerHTML='<div class="empty">No category limits for this month yet.</div>';return}
+  $("budgetList").innerHTML='<div class="card flush budget-list">'+categoryBudgets.map(budget=>{
+    const categorySpent=monthItems.filter(item=>item.cat===budget.category).reduce((sum,item)=>sum+item.amount,0);
+    const remaining=budget.amount-categorySpent,over=remaining<0,percent=categorySpent/budget.amount*100;
+    return `<div class="budget-item"><div class="budget-head"><span class="budget-title">${EMO[budget.category]||"✨"} ${esc(budget.category)}</span><span>${money(budget.amount)}</span><div class="budget-actions"><button type="button" data-budget-edit="${esc(budget.category)}" data-budget-month="${budget.month}" aria-label="Edit ${esc(budget.category)} budget">✎</button><button type="button" data-budget-delete="${esc(budget.category)}" data-budget-month="${budget.month}" aria-label="Delete ${esc(budget.category)} budget">✕</button></div></div><div class="budget-track"><div class="budget-fill${over?" over":""}" style="width:${Math.min(100,percent)}%"></div></div><div class="budget-meta"><span>${money(categorySpent)} spent</span><span>${over?`${money(-remaining)} over`:`${money(remaining)} left`}</span></div></div>`;
+  }).join("")+'</div>';
 }
 
 function billDueInfo(b,ym){
@@ -139,13 +166,24 @@ function openBillSheet(){
   $("save").textContent="Add monthly bill";$("amt").value="";$("note").value="";
   chk();$("bg").classList.add("on");setTimeout(() => $("amt").focus(), 50);
 }
+function openBudgetSheet(budget=null){
+  const month=budget?.month||iso(view).slice(0,7);
+  $("budgetFormMonth").value=month;
+  $("budgetCategory").innerHTML=`<option value="${OVERALL_BUDGET}">Overall</option>`+categories().map(name=>`<option value="${esc(name)}">${esc(name)}</option>`).join("");
+  $("budgetCategory").value=budget?.category||OVERALL_BUDGET;
+  $("budgetAmount").value=budget?String(budget.amount):"";
+  $("budgetBg").classList.add("on");setTimeout(() => $("budgetAmount").focus(),50);
+}
 function chk(){$("save").classList.toggle("ready",parseFloat($("amt").value.replace(",","."))>0)}
 $("amt").oninput=chk;
 function closeSheet(){$("bg").classList.remove("on")}
+function closeBudgetSheet(){$("budgetBg").classList.remove("on")}
 
 $("add").onclick=()=>openSheet();
 $("cancel").onclick=closeSheet;
 $("bg").onclick=e=>{if(e.target===$("bg"))closeSheet()};
+$("budgetCancel").onclick=closeBudgetSheet;
+$("budgetBg").onclick=e=>{if(e.target===$("budgetBg"))closeBudgetSheet()};
 $("chips").onclick=e=>{const c=e.target.dataset.c;if(c){cat=c;chips()}};
 $("addCategory").onclick=()=>{
   const name=$("customCategory").value.trim();
@@ -155,6 +193,15 @@ $("addCategory").onclick=()=>{
   customCats.push(name);
   try{localStorage.setItem(storageKey(CUSTOM_CATS_KEY),JSON.stringify(customCats))}catch(e){}
   syncCategory(name);cat=name;$("customCategory").value="";chips();toast("Category added");
+};
+$("budgetForm").onsubmit=e=>{
+  e.preventDefault();
+  const month=$("budgetFormMonth").value,category=$("budgetCategory").value,amount=Number($("budgetAmount").value);
+  if(!month||!category||!Number.isFinite(amount)||amount<=0)return;
+  const budget={month,category,amount};
+  const index=budgets.findIndex(item=>item.month===month&&item.category===category);
+  if(index<0)budgets.push(budget);else budgets[index]=budget;
+  persistBudgets();syncBudget(budget);closeBudgetSheet();render();toast("Budget saved");
 };
 $("save").onclick=()=>{
   const amount=parseFloat($("amt").value.replace(",","."));
@@ -199,6 +246,8 @@ $("prev").onclick=()=>{view.setMonth(view.getMonth()-1);render()};
 $("next").onclick=()=>{view.setMonth(view.getMonth()+1);render()};
 $("billPrev").onclick=()=>{view.setMonth(view.getMonth()-1);render()};
 $("billNext").onclick=()=>{view.setMonth(view.getMonth()+1);render()};
+$("budgetPrev").onclick=()=>{view.setMonth(view.getMonth()-1);render()};
+$("budgetNext").onclick=()=>{view.setMonth(view.getMonth()+1);render()};
 $("billList").onclick=e=>{
   const id=e.target.dataset.billDelete;
   if(id&&confirm("Delete this monthly bill?")){
@@ -221,24 +270,44 @@ $("billList").onchange=e=>{
   }else return;
   persistBills();syncBill(bill);renderBills();
 };
+function handleBudgetActions(e){
+  const edit=e.target.closest("[data-budget-edit]");
+  if(edit){
+    const budget=budgets.find(item=>item.month===edit.dataset.budgetMonth&&item.category===edit.dataset.budgetEdit);
+    if(budget)openBudgetSheet(budget);
+    return;
+  }
+  const remove=e.target.closest("[data-budget-delete]");
+  if(remove&&confirm("Delete this monthly budget?")){
+    const {budgetMonth:month,budgetDelete:category}=remove.dataset;
+    budgets=budgets.filter(item=>item.month!==month||item.category!==category);
+    persistBudgets();syncDeleteBudget(month,category);render();toast("Budget deleted");
+  }
+}
+$("budgetList").onclick=handleBudgetActions;
+$("budgetSummary").onclick=handleBudgetActions;
 function tab(n){
   $("exp").style.display=n===0?"block":"none";
   $("bills").style.display=n===1?"block":"none";
   $("notes").style.display=n===2?"block":"none";
+  $("budget").style.display=n===3?"block":"none";
   $("add").style.display=n===2?"none":"block";
-  $("add").textContent=n===1?"Add monthly bill":"Add expense";
-  $("add").onclick=n===1?openBillSheet:()=>openSheet();
-  $("title").textContent=n===1?"Utility Bills":n===2?"Notes":"Expenses";
-  $("tabE").classList.toggle("on",n===0);$("tabB").classList.toggle("on",n===1);$("tabN").classList.toggle("on",n===2);
+  $("add").textContent=n===1?"Add monthly bill":n===3?"Set budget":"Add expense";
+  $("add").onclick=n===1?openBillSheet:n===3?()=>openBudgetSheet():()=>openSheet();
+  $("title").textContent=n===1?"Utility Bills":n===2?"Notes":n===3?"Budget":"Expenses";
+  $("tabE").classList.toggle("on",n===0);$("tabB").classList.toggle("on",n===1);$("tabN").classList.toggle("on",n===2);$("tabBudget").classList.toggle("on",n===3);
   $("tabB").setAttribute("aria-selected",String(n===1));
   $("tabE").setAttribute("aria-selected",String(n===0));
   $("tabN").setAttribute("aria-selected",String(n===2));
-  $("prev").parentElement.style.display=n===2?"none":"flex";
+  $("tabBudget").setAttribute("aria-selected",String(n===3));
+  $("prev").parentElement.style.display=n===0?"flex":"none";
   $("billPrev").parentElement.style.display=n===1?"flex":"none";
+  $("budgetPrev").parentElement.style.display=n===3?"flex":"none";
 }
 $("tabE").onclick=()=>tab(0);
 $("tabB").onclick=()=>tab(1);
 $("tabN").onclick=()=>tab(2);
+$("tabBudget").onclick=()=>tab(3);
 try{$("noteText").value=localStorage.getItem("notes-v1")||""}catch(e){}
 let nt;
 $("noteText").oninput=()=>{
@@ -269,6 +338,15 @@ function syncExpense(expense){
 function syncCategory(name){
   return syncMutation(()=>supaClient.from("expense_tracker_categories").upsert({user_id:cloudUser.id,name},{onConflict:"user_id,name"}));
 }
+function budgetRow(budget,userId=cloudUser.id){
+  return {user_id:userId,month:budget.month,category:budget.category,amount:budget.amount};
+}
+function syncBudget(budget){
+  return syncMutation(()=>supaClient.from("expense_tracker_budgets").upsert(budgetRow(budget),{onConflict:"user_id,month,category"}));
+}
+function syncDeleteBudget(month,category){
+  return syncMutation(()=>supaClient.from("expense_tracker_budgets").delete().eq("user_id",cloudUser.id).eq("month",month).eq("category",category));
+}
 function syncBill(bill){
   return syncMutation(()=>supaClient.from("expense_tracker_utility_bills").upsert(billRow(bill),{onConflict:"user_id,id"}));
 }
@@ -287,6 +365,15 @@ async function fetchAllRows(table,columns,userId){
     if(data.length<pageSize)return rows;
   }
 }
+async function fetchAllBudgets(userId){
+  const pageSize=1000,rows=[];
+  for(let offset=0;;offset+=pageSize){
+    const {data,error}=await supaClient.from("expense_tracker_budgets").select("month,category,amount").eq("user_id",userId).order("month").order("category").range(offset,offset+pageSize-1);
+    if(error)throw error;
+    rows.push(...data.map(row=>({month:row.month,category:row.category,amount:Number(row.amount)})));
+    if(data.length<pageSize)return rows;
+  }
+}
 async function activateCloudSession(session){
   if(passwordRecoveryPending){showPasswordResetForm();return}
   if(!session){
@@ -297,9 +384,10 @@ async function activateCloudSession(session){
   if(cloudReady&&cloudUser?.id===session.user.id)return;
   cloudUser=session.user;cloudReady=false;loadUserCache(cloudUser.id);$("authGate").style.display="grid";$("authStatus").textContent="Loading your cloud data…";
   try{
-    const [expenses,bills,categoryResult,noteResult]=await Promise.all([
+    const [expenses,bills,cloudBudgets,categoryResult,noteResult]=await Promise.all([
       fetchAllRows("expense_tracker_expenses","id,amount,category,note,date",cloudUser.id),
       fetchAllRows("expense_tracker_utility_bills","id,name,start_month,due_day,months",cloudUser.id),
+      fetchAllBudgets(cloudUser.id),
       supaClient.from("expense_tracker_categories").select("name").eq("user_id",cloudUser.id).order("name"),
       supaClient.from("expense_tracker_notes").select("content").eq("user_id",cloudUser.id).maybeSingle()
     ]);
@@ -308,18 +396,21 @@ async function activateCloudSession(session){
     const cloudCategories=categoryResult.data.map(row=>row.name);
     const categoriesFromExpenses=expenses.map(row=>row.category).filter(name=>!CATS.some(builtin=>builtin.toLocaleLowerCase()===name.toLocaleLowerCase()));
     const cloudCustomCats=[...new Map([...cloudCategories,...categoriesFromExpenses].filter(name=>name&&!CATS.some(builtin=>builtin.toLocaleLowerCase()===name.toLocaleLowerCase())).map(name=>[name.toLocaleLowerCase(),name])).values()];
-    const hasCloudData=expenses.length||bills.length||categoryResult.data.length||noteResult.data;
+    const hasCloudData=expenses.length||bills.length||cloudBudgets.length||categoryResult.data.length||noteResult.data;
     if(hasCloudData){
       customCats=cloudCustomCats;
+      budgets=cloudBudgets;
       items=expenses.map(row=>({id:Number(row.id),amount:Number(row.amount),cat:row.category,note:row.note||"",date:row.date}));
       utilityBills=bills.map(row=>({id:Number(row.id),name:row.name,startMonth:row.start_month,dueDay:row.due_day,months:row.months||{}}));
       $("noteText").value=noteResult.data?.content||"";
-      localStorage.setItem(storageKey(KEY),JSON.stringify(items));localStorage.setItem(storageKey(BILL_KEY),JSON.stringify(utilityBills));localStorage.setItem(storageKey("notes-v1"),$("noteText").value);localStorage.setItem(storageKey(CUSTOM_CATS_KEY),JSON.stringify(customCats));
+      localStorage.setItem(storageKey(KEY),JSON.stringify(items));localStorage.setItem(storageKey(BILL_KEY),JSON.stringify(utilityBills));localStorage.setItem(storageKey("notes-v1"),$("noteText").value);localStorage.setItem(storageKey(CUSTOM_CATS_KEY),JSON.stringify(customCats));localStorage.setItem(storageKey(BUDGETS_KEY),JSON.stringify(budgets));
     }else{
       try{localStorage.setItem(storageKey(CUSTOM_CATS_KEY),JSON.stringify(customCats))}catch(e){}
+      try{localStorage.setItem(storageKey(BUDGETS_KEY),JSON.stringify(budgets))}catch(e){}
       const initialWrites=[];
       if(items.length)initialWrites.push(supaClient.from("expense_tracker_expenses").upsert(items.map(item=>expenseRow(item,cloudUser.id)),{onConflict:"user_id,id"}));
       if(utilityBills.length)initialWrites.push(supaClient.from("expense_tracker_utility_bills").upsert(utilityBills.map(bill=>billRow(bill,cloudUser.id)),{onConflict:"user_id,id"}));
+      if(budgets.length)initialWrites.push(supaClient.from("expense_tracker_budgets").upsert(budgets.map(budget=>budgetRow(budget,cloudUser.id)),{onConflict:"user_id,month,category"}));
       if(customCats.length)initialWrites.push(supaClient.from("expense_tracker_categories").upsert(customCats.map(name=>({user_id:cloudUser.id,name})),{onConflict:"user_id,name"}));
       initialWrites.push(supaClient.from("expense_tracker_notes").upsert({user_id:cloudUser.id,content:$("noteText").value},{onConflict:"user_id"}));
       const writeResults=await Promise.all(initialWrites);

@@ -5,6 +5,7 @@
 - Added Supabase authentication and per-user cloud sync.
 - Changed expense and utility-bill sync to write only the record created, changed, or deleted. Notes sync separately.
 - Added expense editing and custom categories, synced per user across devices.
+- Added monthly overall and per-category budgets with progress tracking.
 - Scoped browser caches by Supabase user ID so new accounts do not inherit another account's local records.
 - Kept browser-local storage as a cache and added paginated cloud reads for larger histories.
 - Added a receipt-and-check logo for the app header, browser tab, and home-screen icons.
@@ -17,8 +18,9 @@
 2. Select **Add expense**, enter an amount, choose a category, and save. To add your own category, enter its name in **Add a category** and select **Add**.
 3. Use the edit icon on an expense to change it, or the delete icon to remove it.
 4. Open **Utility** to add monthly bills and update their amount or paid status.
-5. Open **Notes** to write reminders; notes save automatically.
-6. Use the month arrows to browse history. Select a category in the chart to filter expenses, then choose **Show all** to clear the filter.
+5. Open **Budget** to set an overall or category limit for the selected month. Edit or delete limits from the summary or category list.
+6. Open **Notes** to write reminders; notes save automatically.
+7. Use the month arrows to browse history. Select a category in the chart to filter expenses, then choose **Show all** to clear the filter.
 
 ## Add to Home Screen
 
@@ -31,7 +33,7 @@ Use the deployed HTTPS address. The app uses the Apple touch icon on iOS and the
 
 New accounts use an internal, non-deliverable Auth identifier; users do not enter or need an email address.
 
-1. Run `supabase/setup.sql` in the Supabase SQL Editor.
+1. Run the updated `supabase/setup.sql` in the Supabase SQL Editor. It creates the per-user budgets table used by the Budget tab.
 2. Deploy the public signup function:
 
 	```sh

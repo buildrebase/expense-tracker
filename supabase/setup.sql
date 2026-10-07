@@ -34,6 +34,14 @@ create table if not exists public.expense_tracker_categories (
 	primary key (user_id, name)
 );
 
+create table if not exists public.expense_tracker_budgets (
+	user_id uuid not null references auth.users(id) on delete cascade,
+	month text not null check (month ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'),
+	category text not null check (category = '__overall__' or char_length(btrim(category)) between 1 and 32),
+	amount numeric not null check (amount > 0),
+	primary key (user_id, month, category)
+);
+
 create table if not exists public.expense_tracker_profiles (
 	user_id uuid primary key references auth.users(id) on delete cascade,
 	username text not null unique check (username = lower(btrim(username)) and username ~ '^[a-z0-9_]{3,24}$')
@@ -48,6 +56,7 @@ alter table public.expense_tracker_expenses enable row level security;
 alter table public.expense_tracker_utility_bills enable row level security;
 alter table public.expense_tracker_notes enable row level security;
 alter table public.expense_tracker_categories enable row level security;
+alter table public.expense_tracker_budgets enable row level security;
 alter table public.expense_tracker_profiles enable row level security;
 alter table public.expense_tracker_signup_attempts enable row level security;
 
@@ -55,6 +64,7 @@ grant select, insert, update, delete on public.expense_tracker_expenses to authe
 grant select, insert, update, delete on public.expense_tracker_utility_bills to authenticated;
 grant select, insert, update, delete on public.expense_tracker_notes to authenticated;
 grant select, insert, update, delete on public.expense_tracker_categories to authenticated;
+grant select, insert, update, delete on public.expense_tracker_budgets to authenticated;
 revoke all on public.expense_tracker_profiles from anon, authenticated;
 revoke all on public.expense_tracker_signup_attempts from anon, authenticated;
 grant all on public.expense_tracker_profiles to service_role;
@@ -107,6 +117,12 @@ create policy "Users manage their own notes"
 drop policy if exists "Users manage their own categories" on public.expense_tracker_categories;
 create policy "Users manage their own categories"
 	on public.expense_tracker_categories for all to authenticated
+	using ((select auth.uid()) = user_id)
+	with check ((select auth.uid()) = user_id);
+
+drop policy if exists "Users manage their own budgets" on public.expense_tracker_budgets;
+create policy "Users manage their own budgets"
+	on public.expense_tracker_budgets for all to authenticated
 	using ((select auth.uid()) = user_id)
 	with check ((select auth.uid()) = user_id);
 

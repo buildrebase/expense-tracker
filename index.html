@@ -54,11 +54,18 @@
     <textarea id="noteText" placeholder="Write bills, reminders or anything else here. It saves as you type." aria-label="Notes"></textarea>
     <div class="s" id="saved"></div>
   </div>
+  <div id="budget">
+    <div class="nav"><button id="budgetPrev" aria-label="Previous month">‹</button><b id="budgetMonth"></b><button id="budgetNext" aria-label="Next month">›</button></div>
+    <div class="total"><div class="n" id="budgetSpent"></div><div class="l">spent this month</div></div>
+    <div class="card" id="budgetSummary"></div>
+    <div id="budgetList"></div>
+  </div>
 </main>
 <button class="fab" id="add">Add expense</button>
 <nav class="bottom-tabs" aria-label="Main navigation">
   <button id="tabB" type="button" aria-label="Utility" aria-selected="false"><span>▤</span><span>Utility</span></button>
   <button id="tabE" class="on" type="button" aria-label="Expenses" aria-selected="true"><span>◷</span><span>Expenses</span></button>
+  <button id="tabBudget" type="button" aria-label="Budget" aria-selected="false"><span>％</span><span>Budget</span></button>
   <button id="tabN" type="button" aria-label="Notes" aria-selected="false"><span>✎</span><span>Notes</span></button>
 </nav>
 
@@ -72,6 +79,17 @@
     <button class="save" id="save">Save expense</button>
     <button class="cancel" id="cancel">Cancel</button>
   </div>
+</div>
+
+<div class="sheet-bg" id="budgetBg">
+  <form class="sheet" id="budgetForm" role="dialog" aria-label="Set monthly budget">
+    <h2>Monthly budget</h2>
+    <label for="budgetFormMonth">Month</label><input id="budgetFormMonth" type="month" required>
+    <label for="budgetCategory">Budget for</label><select id="budgetCategory" required></select>
+    <label for="budgetAmount">Limit</label><input id="budgetAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0" required>
+    <button class="save" type="submit">Save budget</button>
+    <button class="cancel" id="budgetCancel" type="button">Cancel</button>
+  </form>
 </div>
 
 <div class="toast" id="toast" role="status"></div>
