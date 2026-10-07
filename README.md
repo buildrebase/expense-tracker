@@ -8,7 +8,7 @@
 - Kept browser-local storage as a cache and added paginated cloud reads for larger histories.
 - Added a receipt-and-check logo for the app header, browser tab, and home-screen icons.
 - Replaced visible email sign-in with username/password accounts and a support-mediated password reset flow.
-- Added the Supabase table setup, row-level security policies, and legacy-data migration in [supabase-schema.sql](supabase-schema.sql).
+- Added the Supabase table setup, row-level security policies, and legacy-data migration in [supabase/setup.sql](supabase/setup.sql).
 
 ## How to Use
 
@@ -30,7 +30,7 @@ Use the deployed HTTPS address. The app uses the Apple touch icon on iOS and the
 
 New accounts use an internal, non-deliverable Auth identifier; users do not enter or need an email address.
 
-1. Run the updated `supabase-schema.sql` in the Supabase SQL Editor.
+1. Run `supabase/setup.sql` in the Supabase SQL Editor.
 2. Deploy the public signup function:
 
 	```sh
