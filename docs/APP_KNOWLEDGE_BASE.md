@@ -21,7 +21,6 @@ A static, mobile-first expense tracker deployed on Vercel. The browser app uses 
 | [supabase/setup.sql](../supabase/setup.sql) | Tables, RLS, grants, signup rate-limit function, and legacy JSON-row migration. Run in Supabase SQL Editor when schema changes. |
 | [supabase/config.toml](../supabase/config.toml) | Local Supabase CLI project and Edge Function config. |
 | [supabase/functions/username-signup/index.ts](../supabase/functions/username-signup/index.ts) | Public, rate-limited username signup endpoint. Admin/service key stays server-side. |
-| [scripts/migrate-existing-users.ts](../scripts/migrate-existing-users.ts) | Optional, privileged, one-time conversion of existing email Auth accounts to internal aliases and usernames. Not used for the selected fresh-signup rollout. |
 | [scripts/generate-reset-link.ts](../scripts/generate-reset-link.ts) | Admin utility to generate a one-time recovery link after a support request is verified. |
 | [README.md](../README.md) | Short user guide, main setup instructions, and home-screen install steps. |
 
@@ -62,7 +61,7 @@ The visible signup/login form accepts a username and password only. Supabase pas
 - Signup calls the `username-signup` Edge Function. It validates input, hashes the caller IP with HMAC, invokes `expense_tracker_allow_signup` (limit: 5 attempts/IP hash/hour), creates a confirmed Auth user through the Admin API, and inserts the profile. The function's service-role key must never enter browser code.
 - After signup, browser code signs in with the derived internal alias and password.
 - Sign-out resets the UI to Sign in. Password recovery uses `mailto:` to ask the app support contact for help; an administrator verifies the request, generates a one-time link with the local script, and sends it manually. The app never sends or reveals a password.
-- Existing accounts are **not** converted by `setup.sql`. `migrate-existing-users.ts` changes Auth emails to internal aliases and prints a username mapping while preserving passwords. This is a privileged and user-impacting operation. The selected rollout is fresh signup, so skip that script unless the owner later chooses to migrate existing accounts.
+- Existing accounts are **not** converted by `setup.sql`. The selected rollout is fresh signup: existing Auth accounts remain untouched but cannot use the username login. There is no automated account-migration script; if preserving those accounts becomes necessary, design and review a migration before running it.
 
 ## Data Model
 
@@ -96,13 +95,13 @@ The Supabase SQL Editor may show its destructive-operation warning because the s
 
 ## Deployment and Local Checks
 
-1. Back up if preserving existing production accounts/data matters; for the selected fresh-signup approach, do not run `migrate-existing-users.ts`.
+1. Existing-account migration is not provided. The selected workflow is fresh signup; existing Auth accounts remain in Supabase but need a separately designed migration to use username login.
 2. Run the latest `supabase/setup.sql` in the correct Supabase project's SQL Editor.
 3. Deploy the signup function: `supabase functions deploy username-signup --project-ref <project-ref>`.
 4. Ensure the Vercel HTTPS URL is allowed in Supabase Auth redirect settings; deploy the latest static files to Vercel.
 5. Test a new username signup, sign-out/sign-in, expense create/edit/delete, custom category, budget create/edit/delete, and recovery-link flow.
 
-Verified in this workspace during the current work: Supabase CLI 2.120.0 and Deno 2.9.7 were available; `deno check src/app.js scripts/migrate-existing-users.ts scripts/generate-reset-link.ts supabase/functions/username-signup/index.ts` passed after the budget implementation. The `username-signup` deploy command returned exit code 0 in the terminal history.
+Verified in this workspace during the current work: Supabase CLI 2.120.0 and Deno 2.9.7 were available; `deno check src/app.js scripts/generate-reset-link.ts supabase/functions/username-signup/index.ts` passed after the budget implementation. The `username-signup` deploy command returned exit code 0 in the terminal history.
 
 **Not confirmed here:** whether the latest `setup.sql` was successfully run in the remote Supabase project, whether the latest static app was redeployed to Vercel, or whether signup/recovery/budgets were exercised against the live project. The user selected fresh signup; existing-account migration is intentionally skipped.
 
@@ -120,6 +119,7 @@ After each feature or operational milestone, update:
 - **2026-10-07:** Added monthly overall/category budgets with per-user cache and Supabase sync; added `expense_tracker_budgets` table/RLS to `supabase/setup.sql`; updated README usage and setup notes. Deno check passed. Remote SQL/Vercel deployment remain unconfirmed.
 - **2026-10-07:** Namespaced browser data by Supabase user ID to prevent fresh accounts from importing another account's shared local cache; gated first render while checking cloud session.
 - **2026-10-07:** Organized static app source under `src/`, brand assets under `assets/`, Supabase files under `supabase/`, and admin scripts under `scripts/`; updated entry-point and manifest paths.
-- **2026-10-07:** Added username/password login, a signup Edge Function, optional existing-user migration, support-mediated password reset-link tools, and the private username profile schema. The fresh-signup path was selected; do not run the existing-user migration unless that decision changes.
+- **2026-10-07:** Added username/password login, a signup Edge Function, an optional existing-user migration utility, support-mediated password reset-link tools, and the private username profile schema. The migration utility was later removed; see the next entry.
+- **2026-10-07:** Removed the unused existing-account migration script at the user's request. Fresh username signups remain the selected path; legacy Auth accounts are left untouched.
 - **2026-10-05:** Added edit-expense and custom-category support, persisted per user in Supabase; added app logo and home-screen metadata/icons.
 - **2026-10-01:** Replaced whole-state expense/bill cloud saves with per-row mutations and paginated cloud reads; added schema/migration SQL in its own file.

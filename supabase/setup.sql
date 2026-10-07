@@ -1,7 +1,7 @@
 -- Run this script in the Supabase SQL Editor.
 -- It creates the normalized tables used by the app and migrates data from
 -- expense_tracker_data when that legacy table exists. Existing Auth accounts
--- need the local scripts/migrate-existing-users.ts migration before username login.
+-- are not converted; this project currently uses fresh username signups.
 
 create table if not exists public.expense_tracker_expenses (
 	user_id uuid not null references auth.users(id) on delete cascade,
