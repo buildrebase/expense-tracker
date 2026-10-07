@@ -111,6 +111,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 .legend-dot{width:9px;height:9px;border-radius:50%;background:var(--line)}
 .legend-value{color:var(--mute);font-variant-numeric:tabular-nums}
 #notes,#bills,#authNameField,#dueDayField,#userName,#signOut{display:none}
+#resetForm[hidden]{display:none}
 .card.flush{margin-bottom:0}
 .legend-dot[data-category="Food"],.ico[data-category="Food"]{background:#F6C9A8}
 .legend-dot[data-category="Transport"],.ico[data-category="Transport"]{background:#B9D8F0}

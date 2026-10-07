@@ -2,10 +2,13 @@ const CUR="₹", CATS=["Food","Transport","Bills","Shopping","Health","Fun","Oth
 EMO={Food:"🍜",Transport:"🚌",Bills:"🧾",Shopping:"🛍️",Health:"💊",Fun:"🎬",Other:"✨"},
 COL={Food:"#F6C9A8",Transport:"#B9D8F0",Bills:"#D9CBF0",Shopping:"#F4BFD0",Health:"#BFE5D0",Fun:"#F7E3A1",Other:"#D5DEDB"};
 const KEY="expenses-v1", BILL_KEY="utility-bills-v2", OLD_BILL_KEY="utility-bills-v1", CUSTOM_CATS_KEY="expense-categories-v1";
+const INTERNAL_EMAIL_DOMAIN="accounts.expense-tracker.invalid", SUPPORT_EMAIL="lazychess08@gmail.com";
 const SUPABASE_URL="https://btdkdlrflfcmnmmvwxxu.supabase.co", SUPABASE_ANON_KEY="sb_publishable_btfw7hpVeyc7KpOsqVnnvg_lOHde3Im";
 let items=[], utilityBills=[], customCats=[], filt=null, shown=0, billShown=0, cat=CATS[0], view=new Date(); view.setDate(1);
 const $=id=>document.getElementById(id);
 let supaClient=null,cloudUser=null,cloudReady=false,authMode="signin";
+let passwordRecoveryPending=new URLSearchParams(location.hash.slice(1)).get("type")==="recovery";
+const internalAuthEmail=username=>`${username}@${INTERNAL_EMAIL_DOMAIN}`;
 try{items=JSON.parse(localStorage.getItem(KEY)||"[]")||[]}catch(e){items=[]}
 try{customCats=[...new Set(JSON.parse(localStorage.getItem(CUSTOM_CATS_KEY)||"[]").filter(name=>typeof name==="string"&&name.trim()).map(name=>name.trim()))].filter(name=>!CATS.some(builtin=>builtin.toLocaleLowerCase()===name.toLocaleLowerCase()))}catch(e){customCats=[]}
 try{
@@ -278,6 +281,7 @@ async function fetchAllRows(table,columns,userId){
   }
 }
 async function activateCloudSession(session){
+  if(passwordRecoveryPending){showPasswordResetForm();return}
   if(!session){
     cloudUser=null;cloudReady=false;$("userName").style.display="none";$("signOut").style.display="none";$("authGate").style.display="grid";$("authStatus").textContent="";return;
   }
@@ -322,11 +326,17 @@ function initCloud(){
   if(!SUPABASE_URL||!SUPABASE_ANON_KEY){$("syncStatus").textContent="Cloud not configured";return}
   if(!window.supabase){$("syncStatus").textContent="Cloud library unavailable";return}
   supaClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
-  supaClient.auth.onAuthStateChange((_event,session)=>{setTimeout(()=>activateCloudSession(session),0)});
+  supaClient.auth.onAuthStateChange((event,session)=>{
+    if(event==="PASSWORD_RECOVERY"){passwordRecoveryPending=true;showPasswordResetForm();return}
+    setTimeout(()=>activateCloudSession(session),0);
+  });
   supaClient.auth.getSession().then(({data,error})=>{
     if(error){$("authStatus").textContent=error.message;$("authGate").style.display="grid";return}
     activateCloudSession(data.session);
   });
+}
+function showPasswordResetForm(){
+  $("authForm").hidden=true;$("resetForm").hidden=false;$("authGate").style.display="grid";
 }
 $("authToggle").onclick=()=>{
   authMode=authMode==="signin"?"signup":"signin";
@@ -335,22 +345,58 @@ $("authToggle").onclick=()=>{
   $("authHeading").textContent=authMode==="signup"?"Create account":"Sign in";
   $("authSubmit").textContent=authMode==="signup"?"Create account":"Sign in";
   $("authToggle").textContent=authMode==="signup"?"Back to sign in":"Create an account";
+  $("forgotPassword").style.display=authMode==="signup"?"none":"block";
   $("authPassword").autocomplete=authMode==="signup"?"new-password":"current-password";
   $("authStatus").textContent="";
 };
 $("authForm").onsubmit=async e=>{
   e.preventDefault();$("authSubmit").disabled=true;$("authStatus").textContent="Connecting…";
-  const credentials={email:$("authEmail").value.trim(),password:$("authPassword").value};
-  const result=authMode==="signup"?await supaClient.auth.signUp({...credentials,options:{data:{full_name:$("authName").value.trim()}}}):await supaClient.auth.signInWithPassword(credentials);
-  $("authSubmit").disabled=false;
-  if(result.error){$("authStatus").textContent=result.error.message;return}
-  if(authMode==="signup"&&!result.data.session)$("authStatus").textContent="Check your email to confirm your account, then sign in.";
+  const username=$("authUsername").value.trim().toLowerCase(),password=$("authPassword").value;
+  if(!/^[a-z0-9_]{3,24}$/.test(username)){$("authSubmit").disabled=false;$("authStatus").textContent="Use 3–24 letters, numbers, or underscores for the username.";return}
+  try{
+    if(authMode==="signup"){
+      const {error}=await supaClient.functions.invoke("username-signup",{body:{username,password,fullName:$("authName").value.trim()}});
+      if(error){
+        let message="Could not create account.";
+        if(error.context instanceof Response){try{message=(await error.context.clone().json()).error||message}catch(e){}}
+        $("authStatus").textContent=message;return;
+      }
+    }
+    const {error}=await supaClient.auth.signInWithPassword({email:internalAuthEmail(username),password});
+    if(error){$("authStatus").textContent=authMode==="signup"?"Account created. Sign in with your username and password.":"Invalid username or password.";return}
+  }catch(error){$("authStatus").textContent="Could not connect. Check your connection and try again."}
+  finally{$("authSubmit").disabled=false}
+};
+$("forgotPassword").onclick=()=>{
+  const username=$("authUsername").value.trim().toLowerCase();
+  if(!/^[a-z0-9_]{3,24}$/.test(username)){$("authStatus").textContent="Enter your username first, then request a reset.";$("authUsername").focus();return}
+  const subject=encodeURIComponent("Expense Tracker password reset request");
+  const body=encodeURIComponent(`Please help me reset my Expense Tracker password.\n\nUsername: ${username}`);
+  location.href=`mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`;
+};
+$("resetForm").onsubmit=async e=>{
+  e.preventDefault();
+  const password=$("resetPassword").value;
+  if(password!==$("resetPasswordConfirm").value){$("resetStatus").textContent="Passwords do not match.";return}
+  const button=$("resetForm").querySelector('button[type="submit"]');button.disabled=true;$("resetStatus").textContent="Updating password…";
+  const {error}=await supaClient.auth.updateUser({password});
+  button.disabled=false;
+  if(error){$("resetStatus").textContent=error.message;return}
+  passwordRecoveryPending=false;
+  history.replaceState(null,"",location.pathname+location.search);
+  $("resetStatus").textContent="Password updated. Signing in…";
+  const {data}=await supaClient.auth.getSession();
+  if(data.session)await activateCloudSession(data.session);
+};
+$("cancelReset").onclick=async()=>{
+  passwordRecoveryPending=false;await supaClient.auth.signOut();
+  $("resetForm").hidden=true;$("authForm").hidden=false;$("authGate").style.display="grid";
 };
 $("signOut").onclick=async()=>{await supaClient.auth.signOut();};
 function showUserName(user){
   const metadata=user.user_metadata||{};
   const name=metadata.full_name||metadata.name||"";
-  const fallback=name||user.email||"Account";
+  const fallback=name||metadata.username||"Account";
   const button=$("userName");button.textContent=fallback;button.title=name?"Edit display name":"Set your display name";button.style.display="inline-block";
 }
 $("userName").onclick=async()=>{

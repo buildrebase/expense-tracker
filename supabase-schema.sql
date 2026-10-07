@@ -1,6 +1,7 @@
 -- Run this script in the Supabase SQL Editor.
 -- It creates the normalized tables used by the app and migrates data from
--- expense_tracker_data when that legacy table exists.
+-- expense_tracker_data when that legacy table exists. Existing Auth accounts
+-- need the local scripts/migrate-existing-users.ts migration before username login.
 
 create table if not exists public.expense_tracker_expenses (
 	user_id uuid not null references auth.users(id) on delete cascade,
@@ -33,15 +34,57 @@ create table if not exists public.expense_tracker_categories (
 	primary key (user_id, name)
 );
 
+create table if not exists public.expense_tracker_profiles (
+	user_id uuid primary key references auth.users(id) on delete cascade,
+	username text not null unique check (username = lower(btrim(username)) and username ~ '^[a-z0-9_]{3,24}$')
+);
+
+create table if not exists public.expense_tracker_signup_attempts (
+	ip_hash text not null,
+	created_at timestamptz not null default now()
+);
+
 alter table public.expense_tracker_expenses enable row level security;
 alter table public.expense_tracker_utility_bills enable row level security;
 alter table public.expense_tracker_notes enable row level security;
 alter table public.expense_tracker_categories enable row level security;
+alter table public.expense_tracker_profiles enable row level security;
+alter table public.expense_tracker_signup_attempts enable row level security;
 
 grant select, insert, update, delete on public.expense_tracker_expenses to authenticated;
 grant select, insert, update, delete on public.expense_tracker_utility_bills to authenticated;
 grant select, insert, update, delete on public.expense_tracker_notes to authenticated;
 grant select, insert, update, delete on public.expense_tracker_categories to authenticated;
+revoke all on public.expense_tracker_profiles from anon, authenticated;
+revoke all on public.expense_tracker_signup_attempts from anon, authenticated;
+grant all on public.expense_tracker_profiles to service_role;
+grant all on public.expense_tracker_signup_attempts to service_role;
+
+create or replace function public.expense_tracker_allow_signup(p_ip_hash text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+	recent_attempts integer;
+begin
+	perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext(p_ip_hash));
+	delete from public.expense_tracker_signup_attempts
+	where ip_hash = p_ip_hash and created_at < pg_catalog.now() - interval '1 hour';
+	select count(*) into recent_attempts
+	from public.expense_tracker_signup_attempts
+	where ip_hash = p_ip_hash and created_at >= pg_catalog.now() - interval '1 hour';
+	if recent_attempts >= 5 then
+		return false;
+	end if;
+	insert into public.expense_tracker_signup_attempts (ip_hash) values (p_ip_hash);
+	return true;
+end;
+$$;
+
+revoke all on function public.expense_tracker_allow_signup(text) from public, anon, authenticated;
+grant execute on function public.expense_tracker_allow_signup(text) to service_role;
 
 drop policy if exists "Users manage their own expenses" on public.expense_tracker_expenses;
 create policy "Users manage their own expenses"
