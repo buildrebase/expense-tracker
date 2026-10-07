@@ -28,17 +28,10 @@ Use the deployed HTTPS address. The app uses the Apple touch icon on iOS and the
 
 ## Username Authentication Setup
 
-New accounts use an internal, non-deliverable Auth identifier; users do not enter or need an email address. Existing accounts must be migrated once before deploying the username-only sign-in. Back up the project first.
+New accounts use an internal, non-deliverable Auth identifier; users do not enter or need an email address.
 
 1. Run the updated `supabase-schema.sql` in the Supabase SQL Editor.
-2. Install Deno and Supabase CLI. In a local terminal, set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` as environment variables, then run:
-
-	```sh
-	deno run --allow-env --allow-net scripts/migrate-existing-users.ts
-	```
-
-	Save the username mapping printed by the script and share each existing user’s new username with them. The script preserves passwords and replaces Auth email identifiers with internal aliases.
-3. Deploy the public signup function:
+2. Deploy the public signup function:
 
 	```sh
 	supabase login
@@ -47,7 +40,11 @@ New accounts use an internal, non-deliverable Auth identifier; users do not ente
 	```
 
 	The function uses Supabase’s server-side service-role secret; never put that key in `app.js` or any browser code.
-4. Add your Vercel URL to Supabase Authentication’s allowed redirect URLs, then deploy the app.
+3. Add your Vercel URL to Supabase Authentication’s allowed redirect URLs, then deploy the app.
+
+This fresh-signup path does not migrate or delete old Auth accounts. Existing accounts and their data remain in Supabase, but users must create new username accounts to use the new login. Their old data will not appear in the new accounts.
+
+To preserve existing account access instead, back up the project and run `scripts/migrate-existing-users.ts` before deploying. It preserves passwords, replaces Auth email identifiers with internal aliases, and prints a username mapping to share with users.
 
 ## Password Recovery
 
@@ -61,4 +58,4 @@ Send the generated one-time link to the requester; they set their own new passwo
 
 ## Remaining
 
-- Run the SQL and existing-account migration, deploy the Edge Function, then verify user access before deploying the new app.
+- Run the SQL, deploy the signup function, and deploy the app. Existing accounts will need new signups unless you choose the backup-and-migrate path above.
