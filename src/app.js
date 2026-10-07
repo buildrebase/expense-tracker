@@ -290,7 +290,9 @@ async function fetchAllRows(table,columns,userId){
 async function activateCloudSession(session){
   if(passwordRecoveryPending){showPasswordResetForm();return}
   if(!session){
-    cloudUser=null;cloudReady=false;$("userName").style.display="none";$("signOut").style.display="none";$("authGate").style.display="grid";$("authStatus").textContent="";return;
+    cloudUser=null;cloudReady=false;$("userName").style.display="none";$("signOut").style.display="none";
+    $("resetForm").hidden=true;$("authForm").hidden=false;setAuthMode("signin");
+    $("authPassword").value="";$("resetStatus").textContent="";$("authGate").style.display="grid";return;
   }
   if(cloudReady&&cloudUser?.id===session.user.id)return;
   cloudUser=session.user;cloudReady=false;loadUserCache(cloudUser.id);$("authGate").style.display="grid";$("authStatus").textContent="Loading your cloud data…";
@@ -348,8 +350,8 @@ function initCloud(){
 function showPasswordResetForm(){
   $("authForm").hidden=true;$("resetForm").hidden=false;$("authGate").style.display="grid";
 }
-$("authToggle").onclick=()=>{
-  authMode=authMode==="signin"?"signup":"signin";
+function setAuthMode(mode){
+  authMode=mode;
   $("authNameField").style.display=authMode==="signup"?"block":"none";
   $("authName").required=authMode==="signup";
   $("authHeading").textContent=authMode==="signup"?"Create account":"Sign in";
@@ -358,6 +360,9 @@ $("authToggle").onclick=()=>{
   $("forgotPassword").style.display=authMode==="signup"?"none":"block";
   $("authPassword").autocomplete=authMode==="signup"?"new-password":"current-password";
   $("authStatus").textContent="";
+}
+$("authToggle").onclick=()=>{
+  setAuthMode(authMode==="signin"?"signup":"signin");
 };
 $("authForm").onsubmit=async e=>{
   e.preventDefault();$("authSubmit").disabled=true;$("authStatus").textContent="Connecting…";
