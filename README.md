@@ -1,11 +1,14 @@
 # Expense Tracker
 
+For the architecture, data model, auth flow, deployment notes, and change log, see the [Application Knowledge Base](docs/APP_KNOWLEDGE_BASE.md).
+
 ## Progress
 
 - Added Supabase authentication and per-user cloud sync.
 - Changed expense and utility-bill sync to write only the record created, changed, or deleted. Notes sync separately.
 - Added expense editing and custom categories, synced per user across devices.
 - Added monthly overall and per-category budgets with progress tracking.
+- Added month-over-month and six-month spending comparisons with category trends.
 - Scoped browser caches by Supabase user ID so new accounts do not inherit another account's local records.
 - Kept browser-local storage as a cache and added paginated cloud reads for larger histories.
 - Added a receipt-and-check logo for the app header, browser tab, and home-screen icons.
@@ -21,6 +24,7 @@
 5. Open **Budget** to set an overall or category limit for the selected month. Edit or delete limits from the summary or category list.
 6. Open **Notes** to write reminders; notes save automatically.
 7. Use the month arrows to browse history. Select a category in the chart to filter expenses, then choose **Show all** to clear the filter.
+8. Open **Insights** to compare the selected month with the previous month, review six months of totals, and compare category spending. Insights are calculated from expense records and need no new database table.
 
 ## Add to Home Screen
 

@@ -63,6 +63,7 @@ function render(){
     }else $("cats").innerHTML="";
     renderBills();
     renderBudgets();
+    renderInsights();
     const list=all.filter(e=>!filt||e.cat===filt).sort((a,b)=>b.date.localeCompare(a.date)||b.id-a.id);
     if(!list.length){$("list").innerHTML='<div class="empty">No expenses this month.<br>Tap “Add expense” to log one.</div>';return}
     let html=filt?`<div class="filt"><span>Showing ${EMO[filt]} ${filt}</span><button id="clr">Show all</button></div>`:"",last="";
@@ -124,6 +125,54 @@ function renderBudgets(){
     const remaining=budget.amount-categorySpent,over=remaining<0,percent=categorySpent/budget.amount*100;
     return `<div class="budget-item"><div class="budget-head"><span class="budget-title">${EMO[budget.category]||"✨"} ${esc(budget.category)}</span><span>${money(budget.amount)}</span><div class="budget-actions"><button type="button" data-budget-edit="${esc(budget.category)}" data-budget-month="${budget.month}" aria-label="Edit ${esc(budget.category)} budget">✎</button><button type="button" data-budget-delete="${esc(budget.category)}" data-budget-month="${budget.month}" aria-label="Delete ${esc(budget.category)} budget">✕</button></div></div><div class="budget-track"><div class="budget-fill${over?" over":""}" style="width:${Math.min(100,percent)}%"></div></div><div class="budget-meta"><span>${money(categorySpent)} spent</span><span>${over?`${money(-remaining)} over`:`${money(remaining)} left`}</span></div></div>`;
   }).join("")+'</div>';
+}
+
+function renderInsights(){
+  const currentMonth=iso(view).slice(0,7);
+  const previousDate=new Date(view.getFullYear(),view.getMonth()-1,1);
+  const previousMonth=iso(previousDate).slice(0,7);
+  const currentName=view.toLocaleDateString("en-IN",{month:"long",year:"numeric"});
+  const previousName=previousDate.toLocaleDateString("en-IN",{month:"long",year:"numeric"});
+  const currentItems=items.filter(item=>item.date.startsWith(currentMonth));
+  const previousItems=items.filter(item=>item.date.startsWith(previousMonth));
+  const currentTotal=currentItems.reduce((sum,item)=>sum+item.amount,0);
+  const previousTotal=previousItems.reduce((sum,item)=>sum+item.amount,0);
+  const difference=currentTotal-previousTotal;
+  const changeLabel=previousTotal===0
+    ?currentTotal===0?"No spending in either month":"No spending last month"
+    :`${difference>0?"↑":difference<0?"↓":""}${difference===0?"No change":`${money(Math.abs(difference))} (${(Math.abs(difference)/previousTotal*100).toFixed(0)}%)`}`;
+  const changeClass=difference>0?"up":difference<0?"down":"";
+  $("insightMonth").textContent=currentName;
+  $("monthComparison").innerHTML=`<div class="card insight-summary"><h2>Compared with ${previousName}</h2><div class="insight-metrics"><div class="insight-metric"><strong>${money(currentTotal)}</strong><span>This month</span></div><div class="insight-metric"><strong>${money(previousTotal)}</strong><span>Previous month</span></div><div class="insight-metric"><strong class="insight-change ${changeClass}">${changeLabel}</strong><span>Change</span></div></div></div>`;
+
+  const monthlyTotals=[];
+  for(let offset=5;offset>=0;offset--){
+    const monthDate=new Date(view.getFullYear(),view.getMonth()-offset,1);
+    const month=iso(monthDate).slice(0,7);
+    const total=items.filter(item=>item.date.startsWith(month)).reduce((sum,item)=>sum+item.amount,0);
+    monthlyTotals.push({month,total,label:monthDate.toLocaleDateString("en-IN",{month:"short",year:"2-digit"})});
+  }
+  const maxMonthlyTotal=Math.max(0,...monthlyTotals.map(item=>item.total));
+  $("sixMonthTrend").innerHTML=monthlyTotals.some(item=>item.total>0)
+    ?'<div class="card flush trend-list">'+monthlyTotals.map(item=>`<div class="trend-item"><div class="trend-title"><span>${item.label}</span><span>${money(item.total)}</span></div><div class="trend-track" role="img" aria-label="${item.label}: ${money(item.total)}"><div class="trend-fill" style="width:${maxMonthlyTotal?item.total/maxMonthlyTotal*100:0}%"></div></div></div>`).join("")+'</div>'
+    :'<div class="empty">No spending in this six-month period.</div>';
+
+  const categoryTotals=new Map();
+  for(const item of [...previousItems,...currentItems]){
+    const totals=categoryTotals.get(item.cat)||{current:0,previous:0};
+    totals[item.date.startsWith(currentMonth)?"current":"previous"]+=item.amount;
+    categoryTotals.set(item.cat,totals);
+  }
+  const categoryRows=[...categoryTotals.entries()].sort((a,b)=>Math.max(b[1].current,b[1].previous)-Math.max(a[1].current,a[1].previous));
+  const maxCategoryTotal=Math.max(0,...categoryRows.flatMap(([,totals])=>[totals.current,totals.previous]));
+  $("categoryTrend").innerHTML=categoryRows.length
+    ?'<div class="card flush trend-list">'+categoryRows.map(([category,totals])=>{
+      const categoryDifference=totals.current-totals.previous;
+      const label=totals.previous===0?(totals.current>0?"New":"No change"):`${categoryDifference>0?"↑":categoryDifference<0?"↓":""}${categoryDifference===0?"No change":money(Math.abs(categoryDifference))}`;
+      const direction=categoryDifference>0?"up":categoryDifference<0?"down":"";
+      return `<div class="trend-item"><div class="trend-title"><span>${EMO[category]||"✨"} ${esc(category)}</span><span class="insight-change ${direction}">${label}</span></div><div class="trend-line"><label>This month</label><div class="trend-track"><div class="trend-fill" style="width:${maxCategoryTotal?totals.current/maxCategoryTotal*100:0}%"></div></div><strong>${money(totals.current)}</strong></div><div class="trend-line"><label>Last month</label><div class="trend-track"><div class="trend-fill prior" style="width:${maxCategoryTotal?totals.previous/maxCategoryTotal*100:0}%"></div></div><strong>${money(totals.previous)}</strong></div></div>`;
+    }).join("")+'</div>'
+    :'<div class="empty">No category spending in these two months.</div>';
 }
 
 function billDueInfo(b,ym){
@@ -248,6 +297,8 @@ $("billPrev").onclick=()=>{view.setMonth(view.getMonth()-1);render()};
 $("billNext").onclick=()=>{view.setMonth(view.getMonth()+1);render()};
 $("budgetPrev").onclick=()=>{view.setMonth(view.getMonth()-1);render()};
 $("budgetNext").onclick=()=>{view.setMonth(view.getMonth()+1);render()};
+$("insightPrev").onclick=()=>{view.setMonth(view.getMonth()-1);render()};
+$("insightNext").onclick=()=>{view.setMonth(view.getMonth()+1);render()};
 $("billList").onclick=e=>{
   const id=e.target.dataset.billDelete;
   if(id&&confirm("Delete this monthly bill?")){
@@ -291,23 +342,27 @@ function tab(n){
   $("bills").style.display=n===1?"block":"none";
   $("notes").style.display=n===2?"block":"none";
   $("budget").style.display=n===3?"block":"none";
-  $("add").style.display=n===2?"none":"block";
+  $("insights").style.display=n===4?"block":"none";
+  $("add").style.display=n===2||n===4?"none":"block";
   $("add").textContent=n===1?"Add monthly bill":n===3?"Set budget":"Add expense";
   $("add").onclick=n===1?openBillSheet:n===3?()=>openBudgetSheet():()=>openSheet();
-  $("title").textContent=n===1?"Utility Bills":n===2?"Notes":n===3?"Budget":"Expenses";
-  $("tabE").classList.toggle("on",n===0);$("tabB").classList.toggle("on",n===1);$("tabN").classList.toggle("on",n===2);$("tabBudget").classList.toggle("on",n===3);
+  $("title").textContent=n===1?"Utility Bills":n===2?"Notes":n===3?"Budget":n===4?"Insights":"Expenses";
+  $("tabE").classList.toggle("on",n===0);$("tabB").classList.toggle("on",n===1);$("tabN").classList.toggle("on",n===2);$("tabBudget").classList.toggle("on",n===3);$("tabInsights").classList.toggle("on",n===4);
   $("tabB").setAttribute("aria-selected",String(n===1));
   $("tabE").setAttribute("aria-selected",String(n===0));
   $("tabN").setAttribute("aria-selected",String(n===2));
   $("tabBudget").setAttribute("aria-selected",String(n===3));
+  $("tabInsights").setAttribute("aria-selected",String(n===4));
   $("prev").parentElement.style.display=n===0?"flex":"none";
   $("billPrev").parentElement.style.display=n===1?"flex":"none";
   $("budgetPrev").parentElement.style.display=n===3?"flex":"none";
+  $("insightPrev").parentElement.style.display=n===4?"flex":"none";
 }
 $("tabE").onclick=()=>tab(0);
 $("tabB").onclick=()=>tab(1);
 $("tabN").onclick=()=>tab(2);
 $("tabBudget").onclick=()=>tab(3);
+$("tabInsights").onclick=()=>tab(4);
 try{$("noteText").value=localStorage.getItem("notes-v1")||""}catch(e){}
 let nt;
 $("noteText").oninput=()=>{

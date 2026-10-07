@@ -60,12 +60,19 @@
     <div class="card" id="budgetSummary"></div>
     <div id="budgetList"></div>
   </div>
+  <div id="insights">
+    <div class="nav"><button id="insightPrev" aria-label="Previous month">‹</button><b id="insightMonth"></b><button id="insightNext" aria-label="Next month">›</button></div>
+    <div id="monthComparison"></div>
+    <section class="insight-section"><h2>Last six months</h2><div id="sixMonthTrend"></div></section>
+    <section class="insight-section"><h2>Category changes</h2><div id="categoryTrend"></div></section>
+  </div>
 </main>
 <button class="fab" id="add">Add expense</button>
 <nav class="bottom-tabs" aria-label="Main navigation">
   <button id="tabB" type="button" aria-label="Utility" aria-selected="false"><span>▤</span><span>Utility</span></button>
   <button id="tabE" class="on" type="button" aria-label="Expenses" aria-selected="true"><span>◷</span><span>Expenses</span></button>
   <button id="tabBudget" type="button" aria-label="Budget" aria-selected="false"><span>％</span><span>Budget</span></button>
+  <button id="tabInsights" type="button" aria-label="Insights" aria-selected="false"><span>↗</span><span>Insights</span></button>
   <button id="tabN" type="button" aria-label="Notes" aria-selected="false"><span>✎</span><span>Notes</span></button>
 </nav>
 
