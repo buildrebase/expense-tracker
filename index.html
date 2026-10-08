@@ -62,9 +62,15 @@
   </div>
   <div id="insights">
     <div class="nav"><button id="insightPrev" aria-label="Previous month">‹</button><b id="insightMonth"></b><button id="insightNext" aria-label="Next month">›</button></div>
+    <div class="card insight-controls" aria-label="Insights views">
+      <button class="insight-view on" data-insight-view="overview" type="button">Overview</button>
+      <button class="insight-view" data-insight-view="six-month" type="button">6 months</button>
+      <button class="insight-view" data-insight-view="categories" type="button">Categories</button>
+    </div>
     <div id="monthComparison"></div>
-    <section class="insight-section"><h2>Last six months</h2><div id="sixMonthTrend"></div></section>
-    <section class="insight-section"><h2>Category changes</h2><div id="categoryTrend"></div></section>
+    <section class="insight-section" id="insightOverview"><h2>Monthly comparison</h2><div id="sixMonthTrend"></div></section>
+    <section class="insight-section" id="insightSixMonth" hidden><h2>Last six months</h2><div id="sixMonthTrendDetailed"></div></section>
+    <section class="insight-section" id="insightCategories" hidden><h2>Category changes</h2><div id="categoryTrend"></div></section>
   </div>
 </main>
 <button class="fab" id="add">Add expense</button>

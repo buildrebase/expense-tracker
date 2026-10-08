@@ -7,7 +7,7 @@ const INTERNAL_EMAIL_DOMAIN="accounts.expense-tracker.invalid", SUPPORT_EMAIL="l
 const SUPABASE_URL="https://btdkdlrflfcmnmmvwxxu.supabase.co", SUPABASE_ANON_KEY="sb_publishable_btfw7hpVeyc7KpOsqVnnvg_lOHde3Im";
 let items=[], utilityBills=[], customCats=[], budgets=[], filt=null, shown=0, billShown=0, cat=CATS[0], view=new Date(); view.setDate(1);
 const $=id=>document.getElementById(id);
-let supaClient=null,cloudUser=null,cloudReady=false,authMode="signin";
+let supaClient=null,cloudUser=null,cloudReady=false,authMode="signin",insightView="overview",insightCategory=null;
 let passwordRecoveryPending=new URLSearchParams(location.hash.slice(1)).get("type")==="recovery";
 const internalAuthEmail=username=>`${username}@${INTERNAL_EMAIL_DOMAIN}`;
 const storageKey=(key,userId=cloudUser?.id)=>userId?`${key}:${userId}`:key;
@@ -156,6 +156,9 @@ function renderInsights(){
   $("sixMonthTrend").innerHTML=monthlyTotals.some(item=>item.total>0)
     ?'<div class="card flush trend-list">'+monthlyTotals.map(item=>`<div class="trend-item"><div class="trend-title"><span>${item.label}</span><span>${money(item.total)}</span></div><div class="trend-track" role="img" aria-label="${item.label}: ${money(item.total)}"><div class="trend-fill" style="width:${maxMonthlyTotal?item.total/maxMonthlyTotal*100:0}%"></div></div></div>`).join("")+'</div>'
     :'<div class="empty">No spending in this six-month period.</div>';
+  $("sixMonthTrendDetailed").innerHTML=monthlyTotals.some(item=>item.total>0)
+    ?'<div class="card flush trend-list">'+monthlyTotals.map(item=>{ const trend=item.total-monthlyTotals[0].total; const change=trend===0?"No change":`${trend>0?"↑":"↓"}${money(Math.abs(trend))}`; const percent=maxMonthlyTotal?Math.round(item.total/maxMonthlyTotal*100):0; return `<div class="trend-item"><div class="trend-title"><span>${item.label}</span><span class="insight-change ${trend>0?"up":"down"}">${change}</span></div><div class="trend-track" role="img" aria-label="${item.label}: ${money(item.total)}"><div class="trend-fill" style="width:${percent}%"></div></div><div class="trend-meta"><span>${money(item.total)}</span><span>${item.total===0?"No spending":`${percent}% of the highest month`}</span></div></div>`; }).join("")+'</div>'
+    :'<div class="empty">No spending in this six-month period.</div>';
 
   const categoryTotals=new Map();
   for(const item of [...previousItems,...currentItems]){
@@ -170,9 +173,22 @@ function renderInsights(){
       const categoryDifference=totals.current-totals.previous;
       const label=totals.previous===0?(totals.current>0?"New":"No change"):`${categoryDifference>0?"↑":categoryDifference<0?"↓":""}${categoryDifference===0?"No change":money(Math.abs(categoryDifference))}`;
       const direction=categoryDifference>0?"up":categoryDifference<0?"down":"";
-      return `<div class="trend-item"><div class="trend-title"><span>${EMO[category]||"✨"} ${esc(category)}</span><span class="insight-change ${direction}">${label}</span></div><div class="trend-line"><label>This month</label><div class="trend-track"><div class="trend-fill" style="width:${maxCategoryTotal?totals.current/maxCategoryTotal*100:0}%"></div></div><strong>${money(totals.current)}</strong></div><div class="trend-line"><label>Last month</label><div class="trend-track"><div class="trend-fill prior" style="width:${maxCategoryTotal?totals.previous/maxCategoryTotal*100:0}%"></div></div><strong>${money(totals.previous)}</strong></div></div>`;
+      const selected=insightCategory===category?" selected":"";
+      return `<button class="trend-item category-item${selected}" type="button" data-category="${esc(category)}" aria-pressed="${insightCategory===category}"><div class="trend-title"><span>${EMO[category]||"✨"} ${esc(category)}</span><span class="insight-change ${direction}">${label}</span></div><div class="trend-line"><label>This month</label><div class="trend-track"><div class="trend-fill" style="width:${maxCategoryTotal?totals.current/maxCategoryTotal*100:0}%"></div></div><strong>${money(totals.current)}</strong></div><div class="trend-line"><label>Last month</label><div class="trend-track"><div class="trend-fill prior" style="width:${maxCategoryTotal?totals.previous/maxCategoryTotal*100:0}%"></div></div><strong>${money(totals.previous)}</strong></div></button>`;
     }).join("")+'</div>'
     :'<div class="empty">No category spending in these two months.</div>';
+  const selection=categoryRows.find(([category])=>category===insightCategory);
+  $("categoryTrend").insertAdjacentHTML("beforeend",selection
+    ?`<div class="card insight-detail"><h3>${EMO[selection[0]]||"✨"} ${esc(selection[0])}</h3><p>${money(selection[1].current)} this month versus ${money(selection[1].previous)} last month.</p><p>${selection[1].current>selection[1].previous?"This category increased by ":selection[1].current<selection[1].previous?"This category decreased by ":"There was no change for "}${selection[1].previous===0?"" : `${money(Math.abs(selection[1].current-selection[1].previous))}.`}</p></div>`
+    :'<div class="card insight-detail"><p>Select a category to compare its month-over-month spending.</p></div>');
+}
+
+function setInsightView(view){
+  insightView=view;
+  document.querySelectorAll(".insight-view").forEach(button=>button.classList.toggle("on",button.dataset.insightView===view));
+  $("insightOverview").hidden=view!=="overview";
+  $("insightSixMonth").hidden=view!=="six-month";
+  $("insightCategories").hidden=view!=="categories";
 }
 
 function billDueInfo(b,ym){
@@ -337,6 +353,20 @@ function handleBudgetActions(e){
 }
 $("budgetList").onclick=handleBudgetActions;
 $("budgetSummary").onclick=handleBudgetActions;
+$("categoryTrend").onclick=e=>{
+  const category=e.target.closest("[data-category]");
+  if(category){insightCategory=insightCategory===category.dataset.category?null:category.dataset.category;renderInsights();}
+};
+$("categoryTrend").onkeydown=e=>{
+  if((e.key==="Enter"||e.key===" ")&&e.target.closest("[data-category]")){e.preventDefault();e.target.closest("[data-category]").click();}
+};
+$("insights").onchange=e=>{
+  if(e.target.matches(".insight-view"))setInsightView(e.target.dataset.insightView);
+};
+$("insights").onclick=e=>{
+  const viewButton=e.target.closest("[data-insight-view]");
+  if(viewButton)setInsightView(viewButton.dataset.insightView);
+};
 function tab(n){
   $("exp").style.display=n===0?"block":"none";
   $("bills").style.display=n===1?"block":"none";
