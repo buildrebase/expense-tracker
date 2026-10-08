@@ -69,11 +69,9 @@
 </main>
 <button class="fab" id="add">Add expense</button>
 <nav class="bottom-tabs" aria-label="Main navigation">
-  <button id="tabB" type="button" aria-label="Utility" aria-selected="false"><span>▤</span><span>Utility</span></button>
-  <button id="tabE" class="on" type="button" aria-label="Expenses" aria-selected="true"><span>◷</span><span>Expenses</span></button>
-  <button id="tabBudget" type="button" aria-label="Budget" aria-selected="false"><span>％</span><span>Budget</span></button>
   <button id="tabInsights" type="button" aria-label="Insights" aria-selected="false"><span>↗</span><span>Insights</span></button>
-  <button id="tabN" type="button" aria-label="Notes" aria-selected="false"><span>✎</span><span>Notes</span></button>
+  <button id="tabE" class="on" type="button" aria-label="Expenses" aria-selected="true"><span>◷</span><span>Expenses</span></button>
+  <button id="tabManage" type="button" aria-label="Manage" aria-selected="false"><span>☰</span><span>Manage</span></button>
 </nav>
 
 <div class="sheet-bg" id="bg">
@@ -97,6 +95,18 @@
     <button class="save" type="submit">Save budget</button>
     <button class="cancel" id="budgetCancel" type="button">Cancel</button>
   </form>
+</div>
+
+<div class="sheet-bg" id="manageBg" aria-hidden="true">
+  <div class="sheet manage-sheet" id="manageSheet" role="dialog" aria-modal="true" aria-label="Manage your account">
+    <div class="manage-header">
+      <h2>Manage</h2>
+      <button class="manage-close" id="manageClose" type="button" aria-label="Close Manage">✕</button>
+    </div>
+    <button class="manage-action" id="manageUtility" type="button"><span>▤</span><span><strong>Utility Bills</strong><small>Track recurring monthly expenses</small></span></button>
+    <button class="manage-action" id="manageNotes" type="button"><span>✎</span><span><strong>Notes</strong><small>Save reminders and important details</small></span></button>
+    <button class="manage-action" id="manageBudget" type="button"><span>％</span><span><strong>Budget</strong><small>Review spending limits and progress</small></span></button>
+  </div>
 </div>
 
 <div class="toast" id="toast" role="status"></div>

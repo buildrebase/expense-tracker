@@ -347,22 +347,31 @@ function tab(n){
   $("add").textContent=n===1?"Add monthly bill":n===3?"Set budget":"Add expense";
   $("add").onclick=n===1?openBillSheet:n===3?()=>openBudgetSheet():()=>openSheet();
   $("title").textContent=n===1?"Utility Bills":n===2?"Notes":n===3?"Budget":n===4?"Insights":"Expenses";
-  $("tabE").classList.toggle("on",n===0);$("tabB").classList.toggle("on",n===1);$("tabN").classList.toggle("on",n===2);$("tabBudget").classList.toggle("on",n===3);$("tabInsights").classList.toggle("on",n===4);
-  $("tabB").setAttribute("aria-selected",String(n===1));
+  $("tabE").classList.toggle("on",n===0);$("tabInsights").classList.toggle("on",n===4);$("tabManage").classList.toggle("on",n===5);
   $("tabE").setAttribute("aria-selected",String(n===0));
-  $("tabN").setAttribute("aria-selected",String(n===2));
-  $("tabBudget").setAttribute("aria-selected",String(n===3));
   $("tabInsights").setAttribute("aria-selected",String(n===4));
+  $("tabManage").setAttribute("aria-selected",String(n===5));
   $("prev").parentElement.style.display=n===0?"flex":"none";
   $("billPrev").parentElement.style.display=n===1?"flex":"none";
   $("budgetPrev").parentElement.style.display=n===3?"flex":"none";
   $("insightPrev").parentElement.style.display=n===4?"flex":"none";
 }
+function openManageSheet(){
+  $("manageBg").classList.add("on");
+  $("manageSheet").setAttribute("aria-hidden","false");
+}
+function closeManageSheet(){
+  $("manageBg").classList.remove("on");
+  $("manageSheet").setAttribute("aria-hidden","true");
+}
 $("tabE").onclick=()=>tab(0);
-$("tabB").onclick=()=>tab(1);
-$("tabN").onclick=()=>tab(2);
-$("tabBudget").onclick=()=>tab(3);
 $("tabInsights").onclick=()=>tab(4);
+$("tabManage").onclick=openManageSheet;
+$("manageClose").onclick=closeManageSheet;
+$("manageBg").onclick=e=>{if(e.target===$("manageBg"))closeManageSheet();};
+$("manageUtility").onclick=()=>{closeManageSheet();tab(1);};
+$("manageNotes").onclick=()=>{closeManageSheet();tab(2);};
+$("manageBudget").onclick=()=>{closeManageSheet();tab(3);};
 try{$("noteText").value=localStorage.getItem("notes-v1")||""}catch(e){}
 let nt;
 $("noteText").oninput=()=>{
