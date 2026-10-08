@@ -178,6 +178,14 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 .insight-metric span{color:var(--mute);font-size:12px}
 .insight-change.up{color:var(--red)}
 .insight-change.down{color:var(--accText)}
+.insight-bar-chart{padding:16px}
+.insight-chart-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));align-items:end;gap:10px;height:200px}
+.insight-bar-item{display:grid;justify-items:center;gap:7px;height:100%}
+.insight-bar-label{color:var(--mute);font-size:11px}
+.insight-bar-stack{display:flex;align-items:flex-end;width:100%;height:140px;padding:0 6px;border-radius:12px 12px 0 0;background:linear-gradient(to-top,var(--line),var(--bg));overflow:hidden}
+.insight-bar{display:block;width:100%;min-height:4px;border-radius:10px 10px 0 0;background:linear-gradient(180deg,var(--acc),var(--accText));transition:height .25s ease}
+.insight-bar-item strong{font-size:11px;font-variant-numeric:tabular-nums}
+.insight-chart-scale{display:flex;justify-content:space-between;color:var(--mute);font-size:11px;margin-top:8px;padding:0 6px}
 .insight-detail{margin-top:12px;padding:14px}
 .insight-detail h3{margin:0 0 6px;font-size:16px}
 .insight-detail p{margin:6px 0;color:var(--mute);font-size:14px}
